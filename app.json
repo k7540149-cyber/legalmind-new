@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "LegalMind",
+    "slug": "legalmind",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "com.legalmind.app"
+    }
+  }
+}
