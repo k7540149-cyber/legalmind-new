@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+
 import {
   Alert,
   SafeAreaView,
@@ -11,8 +12,16 @@ import {
 } from "react-native";
 
 import { COLORS } from "../constants/app";
-import { getCaseById } from "../data/cases";
-import { evaluateCaseAnswer } from "../engine/evaluator";
+
+import {
+  getCaseById
+} from "../data/cases";
+
+import {
+  evaluateCaseAnswer,
+  getFeedback
+} from "../engine/evaluator";
+
 import {
   getActiveCase,
   addAttempt,
@@ -26,115 +35,211 @@ export default function CaseGameplayScreen({
   onBack,
   onCompleted
 }) {
-  const [caseData, setCaseData] = useState(null);
-  const [answer, setAnswer] = useState("");
-  const [feedback, setFeedback] = useState(null);
-  const [attempt, setAttempt] = useState(1);
-  const [hintsUsed, setHintsUsed] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [caseData, setCaseData] =
+    useState(null);
+
+  const [answer, setAnswer] =
+    useState("");
+
+  const [feedback, setFeedback] =
+    useState(null);
+
+  const [attempt, setAttempt] =
+    useState(1);
+
+  const [hintsUsed, setHintsUsed] =
+    useState(0);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [submitting, setSubmitting] =
+    useState(false);
+
+  const [hintLoading, setHintLoading] =
+    useState(false);
 
   useEffect(() => {
     loadCase();
   }, [caseId]);
 
   async function loadCase() {
+    setLoading(true);
+
     try {
-      const data = getCaseById(caseId);
+      const data =
+        getCaseById(caseId);
+
       setCaseData(data);
 
-      const active = await getActiveCase();
+      const active =
+        await getActiveCase();
 
-      if (active?.caseId === caseId) {
-        setAttempt(
-          Math.max(1, active.attempt || 1)
-        );
-        setHintsUsed(
-          active.hintsUsed || 0
-        );
+      if (
+        active?.id === caseId ||
+        active?.caseId === caseId
+      ) {
+        const savedState =
+          await getActiveCaseState();
+
+        if (savedState) {
+          setAttempt(
+            Math.max(
+              1,
+              Number(savedState.attempt) || 1
+            )
+          );
+
+          setHintsUsed(
+            Math.max(
+              0,
+              Number(savedState.hintsUsed) || 0
+            )
+          );
+        }
       }
+    } catch (error) {
+      console.error(
+        "LegalMind case loading error:",
+        error
+      );
     } finally {
       setLoading(false);
     }
   }
 
+  async function getActiveCaseState() {
+    try {
+      const {
+        getCaseState
+      } = await import(
+        "../services/caseService"
+      );
+
+      return await getCaseState();
+    } catch {
+      return null;
+    }
+  }
+
   function getLocalized(value) {
-    if (!value) return "";
+    if (!value) {
+      return "";
+    }
+
+    if (typeof value === "string") {
+      return value;
+    }
 
     return (
       value?.[language] ||
       value?.pashto ||
-      value
+      value?.dari ||
+      value?.english ||
+      ""
     );
   }
 
   async function handleSubmit() {
-    if (!caseData || submitting) return;
+    if (
+      !caseData ||
+      submitting ||
+      hintLoading
+    ) {
+      return;
+    }
 
-    const cleanAnswer = answer.trim();
+    const cleanAnswer =
+      answer.trim();
 
     if (cleanAnswer.length < 10) {
       Alert.alert(
-        language === "english"
-          ? "Answer too short"
-          : language === "dari"
-          ? "پاسخ خیلی کوتاه است"
-          : "ځواب ډېر لنډ دی",
-        language === "english"
-          ? "Write a little more legal reasoning."
-          : language === "dari"
-          ? "لږ نور حقوقي تحلیل ولیکئ."
-          : "لږ نور حقوقي تحلیل ولیکه."
+        getText("shortAnswerTitle"),
+        getText("shortAnswer")
       );
+
       return;
     }
 
     setSubmitting(true);
 
     try {
-      const result = evaluateCaseAnswer(
-        caseData,
-        cleanAnswer,
-        attempt
-      );
+      const result =
+        evaluateCaseAnswer(
+          caseData,
+          cleanAnswer
+        );
 
-      if (result?.correct) {
-        const completed = await finishCase({
-          role: caseData.role,
-          caseId: caseData.id,
-          attempt,
-          hintsUsed
-        });
+      if (
+        result?.completed === true
+      ) {
+        const completed =
+          await finishCase({
+            role: caseData.role,
+            caseId: caseData.id,
+            completed: true
+          });
+
+        if (
+          completed?.success === true
+        ) {
+          setFeedback({
+            type: "success",
+            message:
+              getText("correct")
+          });
+
+          setTimeout(() => {
+            onCompleted?.(
+              completed
+            );
+          }, 700);
+
+          return;
+        }
 
         setFeedback({
-          type: "success",
+          type: "hint",
           message:
-            result.feedback ||
-            getText("correct")
+            getText("saveError")
         });
-
-        setTimeout(() => {
-          onCompleted?.(completed);
-        }, 700);
 
         return;
       }
 
       await addAttempt();
 
+      const nextAttempt =
+        Math.min(
+          attempt + 1,
+          100
+        );
+
+      const feedbackResult =
+        getFeedback(
+          caseData,
+          result,
+          attempt
+        );
+
       setFeedback({
-        type: "wrong",
+        type:
+          feedbackResult?.type ||
+          "hint",
         message:
-          result?.feedback ||
-          getText(
-            attempt >= 3
-              ? "fullHint"
-              : "wrong"
-          )
+          feedbackResult?.message ||
+          getText("wrong")
       });
 
-      setAttempt((value) => value + 1);
+      setAttempt(
+        nextAttempt
+      );
     } catch (error) {
+      console.error(
+        "LegalMind submit error:",
+        error
+      );
+
       Alert.alert(
         "LegalMind",
         getText("error")
@@ -145,37 +250,80 @@ export default function CaseGameplayScreen({
   }
 
   async function handleHint() {
-    if (!caseData) return;
-
-    const nextHint =
-      getHint(caseData, hintsUsed);
-
-    await addHint();
-
-    setHintsUsed(
-      (value) => value + 1
-    );
-
-    setFeedback({
-      type: "hint",
-      message: nextHint
-    });
-  }
-
-  function getHint(data, used) {
-    const hints = data.hints || [];
-
-    if (hints.length === 0) {
-      return getText("noHint");
+    if (
+      !caseData ||
+      submitting ||
+      hintLoading
+    ) {
+      return;
     }
 
-    const selected =
-      hints[Math.min(
-        used,
-        hints.length - 1
-      )];
+    setHintLoading(true);
 
-    return getLocalized(selected);
+    try {
+      const hints =
+        caseData.hints || {};
+
+      const orderedHints = [
+        hints.first,
+        hints.second,
+        hints.third
+      ].filter(Boolean);
+
+      if (
+        orderedHints.length === 0
+      ) {
+        setFeedback({
+          type: "hint",
+          message:
+            getText("noHint")
+        });
+
+        return;
+      }
+
+      const index =
+        Math.min(
+          hintsUsed,
+          orderedHints.length - 1
+        );
+
+      const selected =
+        orderedHints[index];
+
+      const message =
+        getLocalized(
+          selected
+        ) || getText("noHint");
+
+      await addHint();
+
+      setHintsUsed(
+        (value) =>
+          Math.min(
+            value + 1,
+            100
+          )
+      );
+
+      setFeedback({
+        type: "hint",
+        message
+      });
+    } catch (error) {
+      console.error(
+        "LegalMind hint error:",
+        error
+      );
+
+      setFeedback({
+        type: "hint",
+        message:
+          getText("error")
+      });
+    } finally {
+      setHintLoading(false);
+    }
   }
 
   function getText(key) {
@@ -185,25 +333,46 @@ export default function CaseGameplayScreen({
           "سمه حقوقي پایله! قضیه بشپړه شوه.",
         wrong:
           "ځواب لا بشپړ نه دی. شواهد او حقوقي موضوع بیا وڅېړه.",
-        fullHint:
-          "د قضیې مهم حقایق، شواهد او حقوقي اصل یو له بل سره وتړه.",
         error:
           "د ځواب د ثبت پر مهال ستونزه رامنځته شوه.",
+        saveError:
+          "قضیه بشپړه شوه، خو د پرمختګ د خوندي کولو پر مهال ستونزه رامنځته شوه.",
         noHint:
           "د دې قضیې لپاره نور اضافي لارښود نشته.",
-        back: "بېرته",
-        submit: "خپل نظر ثبت کړه",
-        hint: "لارښود",
+        shortAnswerTitle:
+          "ځواب ډېر لنډ دی",
+        shortAnswer:
+          "لږ نور حقوقي تحلیل ولیکه.",
+        back:
+          "بېرته",
+        submit:
+          "خپل نظر ثبت کړه",
+        hint:
+          "لارښود",
         analysis:
           "خپل حقوقي تحلیل ولیکه",
         story:
           "د قضیې معلومات",
-        people: "اشخاص",
-        evidence: "شواهد",
-        issue: "حقوقي موضوع",
-        task: "ستا دنده",
-        attempt: "هڅه",
-        hints: "لارښودونه"
+        people:
+          "اشخاص",
+        evidence:
+          "شواهد",
+        issue:
+          "حقوقي موضوع",
+        task:
+          "ستا دنده",
+        attempt:
+          "هڅه",
+        hints:
+          "لارښودونه",
+        exitTitle:
+          "⚠️ له قضیې څخه وتل؟",
+        exitMessage:
+          "ستاسې اوسنی پرمختګ به خوندي شي.",
+        stay:
+          "پاتې کېدل",
+        exit:
+          "وتل"
       },
 
       dari: {
@@ -211,25 +380,46 @@ export default function CaseGameplayScreen({
           "نتیجه حقوقی درست است! قضیه تکمیل شد.",
         wrong:
           "پاسخ هنوز کامل نیست. شواهد و موضوع حقوقی را دوباره بررسی کنید.",
-        fullHint:
-          "حقایق مهم، شواهد و اصل حقوقی را با هم ارتباط دهید.",
         error:
           "هنگام ثبت پاسخ مشکل ایجاد شد.",
+        saveError:
+          "قضیه تکمیل شد، اما هنگام ذخیره پیشرفت مشکل ایجاد شد.",
         noHint:
           "برای این قضیه راهنمای اضافی وجود ندارد.",
-        back: "برگشت",
-        submit: "ثبت نظر شما",
-        hint: "راهنما",
+        shortAnswerTitle:
+          "پاسخ خیلی کوتاه است",
+        shortAnswer:
+          "لطفاً کمی تحلیل حقوقی بیشتر بنویسید.",
+        back:
+          "برگشت",
+        submit:
+          "ثبت نظر",
+        hint:
+          "راهنما",
         analysis:
           "تحلیل حقوقی خود را بنویسید",
         story:
           "معلومات قضیه",
-        people: "اشخاص",
-        evidence: "شواهد",
-        issue: "موضوع حقوقی",
-        task: "وظیفه شما",
-        attempt: "تلاش",
-        hints: "راهنماها"
+        people:
+          "اشخاص",
+        evidence:
+          "شواهد",
+        issue:
+          "موضوع حقوقی",
+        task:
+          "وظیفه شما",
+        attempt:
+          "تلاش",
+        hints:
+          "راهنماها",
+        exitTitle:
+          "⚠️ از قضیه خارج شوید؟",
+        exitMessage:
+          "پیشرفت فعلی شما ذخیره می‌شود.",
+        stay:
+          "ماندن",
+        exit:
+          "خروج"
       },
 
       english: {
@@ -237,30 +427,73 @@ export default function CaseGameplayScreen({
           "Correct legal conclusion! Case completed.",
         wrong:
           "The answer is not complete yet. Review the evidence and legal issue.",
-        fullHint:
-          "Connect the key facts, evidence, and legal principle.",
         error:
           "There was a problem submitting the answer.",
+        saveError:
+          "The case was completed, but there was a problem saving progress.",
         noHint:
           "No additional hint is available.",
-        back: "Back",
-        submit: "Submit Your Opinion",
-        hint: "Hint",
+        shortAnswerTitle:
+          "Answer too short",
+        shortAnswer:
+          "Write a little more legal reasoning.",
+        back:
+          "Back",
+        submit:
+          "Submit Your Opinion",
+        hint:
+          "Hint",
         analysis:
           "Write your legal analysis",
         story:
           "Case Information",
-        people: "People",
-        evidence: "Evidence",
-        issue: "Legal Issue",
-        task: "Your Task",
-        attempt: "Attempt",
-        hints: "Hints"
+        people:
+          "People",
+        evidence:
+          "Evidence",
+        issue:
+          "Legal Issue",
+        task:
+          "Your Task",
+        attempt:
+          "Attempt",
+        hints:
+          "Hints",
+        exitTitle:
+          "⚠️ Exit the case?",
+        exitMessage:
+          "Your current progress will be saved.",
+        stay:
+          "Stay",
+        exit:
+          "Exit"
       }
     };
 
-    return texts[language]?.[key] ||
-      texts.pashto[key];
+    return (
+      texts?.[language]?.[key] ||
+      texts.pashto[key] ||
+      ""
+    );
+  }
+
+  function handleBack() {
+    Alert.alert(
+      getText("exitTitle"),
+      getText("exitMessage"),
+      [
+        {
+          text: getText("stay"),
+          style: "cancel"
+        },
+        {
+          text: getText("exit"),
+          onPress: () => {
+            onBack?.();
+          }
+        }
+      ]
+    );
   }
 
   if (loading) {
@@ -288,23 +521,40 @@ export default function CaseGameplayScreen({
   }
 
   const title =
-    getLocalized(caseData.title) ||
-    "—";
+    getLocalized(
+      caseData.title
+    ) || "—";
 
   const story =
-    getLocalized(caseData.story);
+    getLocalized(
+      caseData.story
+    );
 
   const issue =
-    getLocalized(caseData.legalIssue);
+    getLocalized(
+      caseData.legalIssue
+    );
 
   const task =
-    getLocalized(caseData.roleTask);
+    getLocalized(
+      caseData.tasks?.[
+        caseData.role
+      ]
+    );
 
   const people =
-    caseData.people || [];
+    Array.isArray(
+      caseData.people
+    )
+      ? caseData.people
+      : [];
 
   const evidence =
-    caseData.evidence || [];
+    Array.isArray(
+      caseData.evidence
+    )
+      ? caseData.evidence
+      : [];
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -313,36 +563,11 @@ export default function CaseGameplayScreen({
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => {
-              Alert.alert(
-                "⚠️",
-                language === "english"
-                  ? "Exit the case? Your current progress will be saved."
-                  : language === "dari"
-                  ? "از قضیه خارج شوید؟ پیشرفت فعلی شما ذخیره می‌شود."
-                  : "له قضیې څخه وتل؟ ستاسې اوسنی پرمختګ به خوندي شي.",
-                [
-                  {
-                    text:
-                      language === "english"
-                        ? "Stay"
-                        : language === "dari"
-                        ? "ماندن"
-                        : "پاتې کېدل",
-                    style: "cancel"
-                  },
-                  {
-                    text:
-                      language === "english"
-                        ? "Exit"
-                        : language === "dari"
-                        ? "خروج"
-                        : "وتل",
-                    onPress: onBack
-                  }
-                ]
-              );
-            }}
+            onPress={handleBack}
+            disabled={
+              submitting ||
+              hintLoading
+            }
           >
             <Text style={styles.backIcon}>
               ‹
@@ -364,22 +589,30 @@ export default function CaseGameplayScreen({
         </View>
 
         <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={
+            false
+          }
+          contentContainerStyle={
+            styles.content
+          }
         >
 
           <View style={styles.stats}>
             <Text style={styles.statText}>
-              {getText("attempt")}: {attempt}
+              {getText("attempt")}:{" "}
+              {attempt}
             </Text>
 
             <Text style={styles.statText}>
-              {getText("hints")}: {hintsUsed}
+              {getText("hints")}:{" "}
+              {hintsUsed}
             </Text>
           </View>
 
           <Section
-            title={`📖 ${getText("story")}`}
+            title={`📖 ${getText(
+              "story"
+            )}`}
             text={story}
           />
 
@@ -389,17 +622,25 @@ export default function CaseGameplayScreen({
                 👥 {getText("people")}
               </Text>
 
-              {people.map((person, index) => (
-                <InfoCard
-                  key={person.id || index}
-                  title={getLocalized(
-                    person.name
-                  )}
-                  text={getLocalized(
-                    person.statement
-                  )}
-                />
-              ))}
+              {people.map(
+                (person, index) => (
+                  <InfoCard
+                    key={
+                      person.id ||
+                      `person-${index}`
+                    }
+                    title={getLocalized(
+                      person.name
+                    )}
+                    subtitle={getLocalized(
+                      person.role
+                    )}
+                    text={getLocalized(
+                      person.statement
+                    )}
+                  />
+                )
+              )}
             </View>
           )}
 
@@ -409,27 +650,36 @@ export default function CaseGameplayScreen({
                 📄 {getText("evidence")}
               </Text>
 
-              {evidence.map((item, index) => (
-                <InfoCard
-                  key={item.id || index}
-                  title={getLocalized(
-                    item.name
-                  )}
-                  text={getLocalized(
-                    item.description
-                  )}
-                />
-              ))}
+              {evidence.map(
+                (item, index) => (
+                  <InfoCard
+                    key={
+                      item.id ||
+                      `evidence-${index}`
+                    }
+                    title={getLocalized(
+                      item.title
+                    )}
+                    text={getLocalized(
+                      item.content
+                    )}
+                  />
+                )
+              )}
             </View>
           )}
 
           <Section
-            title={`⚖️ ${getText("issue")}`}
+            title={`⚖️ ${getText(
+              "issue"
+            )}`}
             text={issue}
           />
 
           <Section
-            title={`🎯 ${getText("task")}`}
+            title={`🎯 ${getText(
+              "task"
+            )}`}
             text={task}
           />
 
@@ -443,6 +693,10 @@ export default function CaseGameplayScreen({
               onChangeText={setAnswer}
               multiline
               textAlignVertical="top"
+              editable={
+                !submitting &&
+                !hintLoading
+              }
               placeholder={
                 language === "english"
                   ? "Write your legal reasoning here..."
@@ -455,13 +709,25 @@ export default function CaseGameplayScreen({
             />
 
             <View style={styles.actions}>
+
               <TouchableOpacity
-                style={styles.hintButton}
+                style={[
+                  styles.hintButton,
+                  hintLoading &&
+                    styles.disabledButton
+                ]}
                 onPress={handleHint}
-                disabled={submitting}
+                disabled={
+                  submitting ||
+                  hintLoading
+                }
               >
                 <Text style={styles.hintText}>
-                  💡 {getText("hint")}
+                  {hintLoading
+                    ? "..."
+                    : `💡 ${getText(
+                        "hint"
+                      )}`}
                 </Text>
               </TouchableOpacity>
 
@@ -472,14 +738,20 @@ export default function CaseGameplayScreen({
                     styles.disabledButton
                 ]}
                 onPress={handleSubmit}
-                disabled={submitting}
+                disabled={
+                  submitting ||
+                  hintLoading
+                }
               >
                 <Text style={styles.submitText}>
                   {submitting
                     ? "..."
-                    : `⚖️ ${getText("submit")}`}
+                    : `⚖️ ${getText(
+                        "submit"
+                      )}`}
                 </Text>
               </TouchableOpacity>
+
             </View>
           </View>
 
@@ -487,20 +759,28 @@ export default function CaseGameplayScreen({
             <View
               style={[
                 styles.feedback,
-                feedback.type === "success" &&
+                feedback.type ===
+                  "success" &&
                   styles.successFeedback,
-                feedback.type === "wrong" &&
+                feedback.type ===
+                  "wrong" &&
                   styles.wrongFeedback,
-                feedback.type === "hint" &&
-                  styles.hintFeedback
+                feedback.type ===
+                  "hint" &&
+                  styles.hintFeedback,
+                feedback.type ===
+                  "guidance" &&
+                  styles.guidanceFeedback
               ]}
             >
               <Text style={styles.feedbackTitle}>
-                {feedback.type === "success"
+                {feedback.type ===
+                "success"
                   ? "✅"
-                  : feedback.type === "hint"
-                  ? "💡"
-                  : "⚠️"}
+                  : feedback.type ===
+                    "guidance"
+                  ? "🧭"
+                  : "💡"}
               </Text>
 
               <Text style={styles.feedbackText}>
@@ -515,7 +795,10 @@ export default function CaseGameplayScreen({
   );
 }
 
-function Section({ title, text }) {
+function Section({
+  title,
+  text
+}) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>
@@ -531,12 +814,23 @@ function Section({ title, text }) {
   );
 }
 
-function InfoCard({ title, text }) {
+function InfoCard({
+  title,
+  subtitle,
+  text
+}) {
   return (
     <View style={styles.infoCard}>
+
       {title ? (
         <Text style={styles.cardTitle}>
           {title}
+        </Text>
+      ) : null}
+
+      {subtitle ? (
+        <Text style={styles.cardSubtitle}>
+          {subtitle}
         </Text>
       ) : null}
 
@@ -545,6 +839,7 @@ function InfoCard({ title, text }) {
           {text}
         </Text>
       ) : null}
+
     </View>
   );
 }
@@ -552,7 +847,8 @@ function InfoCard({ title, text }) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: COLORS.navy
+    backgroundColor:
+      COLORS.navy
   },
 
   container: {
@@ -565,7 +861,8 @@ const styles = StyleSheet.create({
     height: 54,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between"
+    justifyContent:
+      "space-between"
   },
 
   backButton: {
@@ -606,8 +903,10 @@ const styles = StyleSheet.create({
 
   stats: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    backgroundColor: "#102536",
+    justifyContent:
+      "space-between",
+    backgroundColor:
+      "#102536",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 11,
@@ -632,9 +931,11 @@ const styles = StyleSheet.create({
   },
 
   infoCard: {
-    backgroundColor: "#102536",
+    backgroundColor:
+      "#102536",
     borderWidth: 1,
-    borderColor: "#315044",
+    borderColor:
+      "#315044",
     borderRadius: 14,
     padding: 15,
     marginBottom: 9
@@ -644,6 +945,13 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
     fontWeight: "800",
+    marginBottom: 5
+  },
+
+  cardSubtitle: {
+    color: COLORS.gold,
+    fontSize: 13,
+    fontWeight: "700",
     marginBottom: 6
   },
 
@@ -660,9 +968,11 @@ const styles = StyleSheet.create({
 
   input: {
     minHeight: 180,
-    backgroundColor: "#0C2232",
+    backgroundColor:
+      "#0C2232",
     borderWidth: 1,
-    borderColor: COLORS.gold,
+    borderColor:
+      COLORS.gold,
     borderRadius: 14,
     padding: 15,
     color: COLORS.white,
@@ -680,9 +990,11 @@ const styles = StyleSheet.create({
     flex: 0.35,
     minHeight: 52,
     borderRadius: 14,
-    backgroundColor: "#6B4718",
+    backgroundColor:
+      "#6B4718",
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent:
+      "center"
   },
 
   hintText: {
@@ -695,9 +1007,11 @@ const styles = StyleSheet.create({
     flex: 0.65,
     minHeight: 52,
     borderRadius: 14,
-    backgroundColor: COLORS.gold,
+    backgroundColor:
+      COLORS.gold,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent:
+      "center",
     paddingHorizontal: 10
   },
 
@@ -720,18 +1034,31 @@ const styles = StyleSheet.create({
   },
 
   successFeedback: {
-    backgroundColor: "#123D2B",
-    borderColor: COLORS.success
+    backgroundColor:
+      "#123D2B",
+    borderColor:
+      COLORS.success
   },
 
   wrongFeedback: {
-    backgroundColor: "#3A1818",
-    borderColor: COLORS.danger
+    backgroundColor:
+      "#3A1818",
+    borderColor:
+      COLORS.danger
   },
 
   hintFeedback: {
-    backgroundColor: "#3D2C12",
-    borderColor: COLORS.warning
+    backgroundColor:
+      "#3D2C12",
+    borderColor:
+      COLORS.warning
+  },
+
+  guidanceFeedback: {
+    backgroundColor:
+      "#163047",
+    borderColor:
+      COLORS.info
   },
 
   feedbackTitle: {
@@ -748,7 +1075,8 @@ const styles = StyleSheet.create({
   center: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent:
+      "center"
   },
 
   loading: {
