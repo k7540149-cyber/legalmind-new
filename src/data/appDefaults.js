@@ -5,6 +5,7 @@ export const DEFAULT_PROFILE = {
   name: "",
   surname: "",
   email: "",
+  setupComplete: false,
 };
 
 export const DEFAULT_PROGRESS = {
@@ -50,9 +51,9 @@ export const DEFAULT_FAVORITES = {
 export const DEFAULT_CASE_STATE = {
   activeCaseId: null,
   role: null,
-  attempts: 0,
+  attempt: 0,
   hintsUsed: 0,
-  submitted: false,
+  startedAt: null,
   completed: false,
 };
 
@@ -60,6 +61,8 @@ export const APP_LIMITS = {
   totalCases: 100,
   minimumScore: 40,
   maximumRoleSkill: 100,
+  maximumAttempt: 100,
+  maximumHints: 100,
 };
 
 export const SETUP_FIELDS = [
@@ -67,3 +70,17 @@ export const SETUP_FIELDS = [
   "surname",
   "email",
 ];
+
+export const ABOUT_CREATOR = {
+  name: "اميد مومند",
+  displayName: "اميد حسن زی",
+  university: "ننګرهار پوهنتون",
+  faculty: "حقوق او سياسي علوم",
+  department: "حقوقي علوم",
+  semester: "5",
+  classYear: "3",
+  academicYear: "1405",
+  email: "omidhasanzai@gmail.com",
+  telegram: "@momand330",
+  appVersion: "9",
+};
