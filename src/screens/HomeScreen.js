@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  ImageBackground,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -9,6 +10,8 @@ import {
 } from "react-native";
 
 import { COLORS } from "../constants/app";
+
+const HOME_BACKGROUND = require("../../assets/legalmind_home_background.png");
 
 export default function HomeScreen({
   profile = null,
@@ -30,12 +33,6 @@ export default function HomeScreen({
       : isDari
       ? "مورد علاقه‌ها"
       : "Favorites",
-
-    notifications: isPashto
-      ? "خبرتیاوې"
-      : isDari
-      ? "اعلان‌ها"
-      : "Notifications",
 
     terminology: isPashto
       ? "حقوقي ترمینالوژي"
@@ -70,146 +67,124 @@ export default function HomeScreen({
 
   function navigate(destination, params = {}) {
     if (typeof onNavigate !== "function") return;
-
     onNavigate(destination, params);
   }
 
-  const displayName =
-    profile?.name?.trim() || "";
+  const displayName = profile?.name?.trim() || "";
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
-        <View style={styles.topBar}>
-          <TouchableOpacity
-            activeOpacity={0.8}
-            style={styles.topButton}
-            onPress={() => navigate("profile")}
-          >
-            <Text style={styles.topIcon}>
-              👤
-            </Text>
+      <ImageBackground
+        source={HOME_BACKGROUND}
+        resizeMode="cover"
+        style={styles.background}
+      >
+        <View style={styles.overlay} />
 
-            <Text style={styles.topText}>
-              {text.profile}
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.topRight}>
+        <View style={styles.container}>
+          <View style={styles.topBar}>
             <TouchableOpacity
               activeOpacity={0.8}
               style={styles.topButton}
-              onPress={() =>
-                navigate("notifications")
-              }
+              onPress={() => navigate("profile")}
             >
-              <Text style={styles.topIcon}>
-                🔔
-              </Text>
+              <Text style={styles.topIcon}>👤</Text>
 
               <Text style={styles.topText}>
-                {text.notifications}
+                {text.profile}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               activeOpacity={0.8}
               style={styles.topButton}
-              onPress={() =>
-                navigate("favorites")
-              }
+              onPress={() => navigate("favorites")}
             >
-              <Text style={styles.topIcon}>
-                ⭐
-              </Text>
+              <Text style={styles.topIcon}>⭐</Text>
 
               <Text style={styles.topText}>
                 {text.favorites}
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.content}
-        >
-          <View style={styles.hero}>
-            <Text style={styles.logo}>
-              ⚖️
-            </Text>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.content}
+          >
+            <View style={styles.hero}>
+              <View style={styles.logoCircle}>
+                <Text style={styles.logo}>⚖️</Text>
+              </View>
 
-            <Text style={styles.title}>
-              LegalMind
-            </Text>
-
-            <Text style={styles.tagline}>
-              Learn • Analyze • Decide
-            </Text>
-
-            {displayName ? (
-              <Text style={styles.welcome}>
-                {displayName}، {text.welcome}
+              <Text style={styles.title}>
+                LegalMind
               </Text>
-            ) : null}
-          </View>
 
-          <View style={styles.menuContainer}>
-            <MenuCard
-              icon="📚"
-              title={text.terminology}
-              onPress={() =>
-                navigate("terminology")
-              }
-            />
+              <Text style={styles.tagline}>
+                Learn • Analyze • Decide
+              </Text>
 
-            <MenuCard
-              icon="👨‍⚖️"
-              title={text.judge}
-              onPress={() =>
-                navigate("judge", {
-                  role: "judge",
-                })
-              }
-            />
+              {displayName ? (
+                <Text style={styles.welcome}>
+                  {displayName}، {text.welcome}
+                </Text>
+              ) : null}
+            </View>
 
-            <MenuCard
-              icon="⚖️"
-              title={text.prosecutor}
-              onPress={() =>
-                navigate("prosecutor", {
-                  role: "prosecutor",
-                })
-              }
-            />
+            <View style={styles.menuContainer}>
+              <MenuCard
+                icon="📚"
+                title={text.terminology}
+                onPress={() =>
+                  navigate("terminology")
+                }
+              />
 
-            <MenuCard
-              icon="👨‍💼"
-              title={text.defense}
-              onPress={() =>
-                navigate("defense", {
-                  role: "defense",
-                })
-              }
-            />
-          </View>
+              <MenuCard
+                icon="👨‍⚖️"
+                title={text.judge}
+                onPress={() =>
+                  navigate("judge", {
+                    role: "judge",
+                  })
+                }
+              />
 
-          <View style={styles.creatorArea}>
-            <Text style={styles.creator}>
-              Designed by: Omid Momand
-            </Text>
-          </View>
-        </ScrollView>
-      </View>
+              <MenuCard
+                icon="⚖️"
+                title={text.prosecutor}
+                onPress={() =>
+                  navigate("prosecutor", {
+                    role: "prosecutor",
+                  })
+                }
+              />
+
+              <MenuCard
+                icon="👨‍💼"
+                title={text.defense}
+                onPress={() =>
+                  navigate("defense", {
+                    role: "defense",
+                  })
+                }
+              />
+            </View>
+
+            <View style={styles.creatorArea}>
+              <Text style={styles.creator}>
+                Designed by: Omid Momand
+              </Text>
+            </View>
+          </ScrollView>
+        </View>
+      </ImageBackground>
     </SafeAreaView>
   );
 }
 
-function MenuCard({
-  icon,
-  title,
-  onPress,
-}) {
+function MenuCard({ icon, title, onPress }) {
   return (
     <TouchableOpacity
       activeOpacity={0.82}
@@ -229,9 +204,7 @@ function MenuCard({
         </Text>
       </View>
 
-      <Text style={styles.arrow}>
-        ›
-      </Text>
+      <Text style={styles.arrow}>›</Text>
     </TouchableOpacity>
   );
 }
@@ -242,39 +215,46 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.navy,
   },
 
+  background: {
+    flex: 1,
+  },
+
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(3, 12, 20, 0.48)",
+  },
+
   container: {
     flex: 1,
-    paddingHorizontal: 18,
-    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingTop: 10,
   },
 
   content: {
     flexGrow: 1,
-    paddingBottom: 15,
+    paddingBottom: 12,
   },
 
   topBar: {
-    minHeight: 50,
+    minHeight: 52,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
 
-  topRight: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
   topButton: {
     minHeight: 44,
-    paddingHorizontal: 7,
+    paddingHorizontal: 10,
     flexDirection: "row",
     alignItems: "center",
-    marginLeft: 4,
+    backgroundColor: "rgba(7, 24, 39, 0.72)",
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.65)",
+    borderRadius: 12,
   },
 
   topIcon: {
-    fontSize: 21,
+    fontSize: 20,
   },
 
   topText: {
@@ -287,13 +267,24 @@ const styles = StyleSheet.create({
   hero: {
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 25,
-    paddingBottom: 30,
+    paddingTop: 22,
+    paddingBottom: 26,
+  },
+
+  logoCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: "rgba(7, 24, 39, 0.78)",
+    borderWidth: 2,
+    borderColor: COLORS.gold,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
   },
 
   logo: {
-    fontSize: 56,
-    marginBottom: 8,
+    fontSize: 42,
   },
 
   title: {
@@ -301,20 +292,31 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: "900",
     letterSpacing: 0.5,
+    textShadowColor: "#000000",
+    textShadowOffset: {
+      width: 1,
+      height: 2,
+    },
+    textShadowRadius: 4,
   },
 
   tagline: {
     color: COLORS.gold,
     fontSize: 15,
-    fontWeight: "700",
-    marginTop: 6,
+    fontWeight: "800",
+    marginTop: 5,
   },
 
   welcome: {
-    color: COLORS.lightGray,
+    color: COLORS.white,
     fontSize: 14,
-    marginTop: 16,
+    fontWeight: "700",
+    marginTop: 13,
     textAlign: "center",
+    backgroundColor: "rgba(7, 24, 39, 0.65)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
 
   menuContainer: {
@@ -324,11 +326,11 @@ const styles = StyleSheet.create({
   menuCard: {
     minHeight: 70,
     width: "100%",
-    backgroundColor: COLORS.emerald,
+    backgroundColor: "rgba(11, 61, 50, 0.90)",
     borderWidth: 1,
     borderColor: COLORS.gold,
     borderRadius: 15,
-    paddingHorizontal: 16,
+    paddingHorizontal: 15,
     marginBottom: 12,
     flexDirection: "row",
     alignItems: "center",
@@ -360,20 +362,25 @@ const styles = StyleSheet.create({
   arrow: {
     color: COLORS.gold,
     fontSize: 34,
-    fontWeight: "300",
     marginLeft: 8,
   },
 
   creatorArea: {
     flex: 1,
-    minHeight: 60,
+    minHeight: 55,
     justifyContent: "flex-end",
     alignItems: "center",
-    paddingBottom: 8,
+    paddingBottom: 5,
   },
 
   creator: {
-    color: "#7F8C98",
+    color: "#D0D7DD",
     fontSize: 11,
+    textShadowColor: "#000000",
+    textShadowOffset: {
+      width: 1,
+      height: 1,
+    },
+    textShadowRadius: 3,
   },
 });
