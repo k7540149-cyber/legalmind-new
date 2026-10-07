@@ -1,59 +1,102 @@
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
 import { COLORS } from "../constants/app";
 import { getTermById } from "../data/terminology";
 import {
   isFavorite,
-  toggleFavorite
+  toggleFavorite,
 } from "../services/favoritesService";
 
 export default function TermDetailScreen({
   termId,
   language = "pashto",
-  onBack
+  onBack,
 }) {
   const [term, setTerm] = useState(null);
   const [favorite, setFavorite] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
+    async function loadTerm() {
+      setLoading(true);
+
+      try {
+        const found = getTermById(termId);
+
+        if (!mounted) return;
+
+        setTerm(found);
+
+        if (found?.id) {
+          const saved = await isFavorite(
+            "terminology",
+            found.id
+          );
+
+          if (mounted) {
+            setFavorite(Boolean(saved));
+          }
+        } else {
+          setFavorite(false);
+        }
+      } catch (error) {
+        console.error(
+          "LegalMind term detail error:",
+          error
+        );
+
+        if (mounted) {
+          setTerm(null);
+          setFavorite(false);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
     loadTerm();
+
+    return () => {
+      mounted = false;
+    };
   }, [termId]);
 
-  async function loadTerm() {
-    const found = getTermById(termId);
+  async function handleFavorite() {
+    if (!term?.id) return;
 
-    setTerm(found);
-
-    if (found) {
-      const saved = await isFavorite(
+    try {
+      const updated = await toggleFavorite(
         "terminology",
-        found.id
+        term.id
       );
 
-      setFavorite(saved);
+      const terminologyFavorites =
+        Array.isArray(updated?.terminology)
+          ? updated.terminology
+          : [];
+
+      setFavorite(
+        terminologyFavorites.includes(term.id)
+      );
+    } catch (error) {
+      console.error(
+        "LegalMind favorite error:",
+        error
+      );
     }
-  }
-
-  async function handleFavorite() {
-    if (!term) return;
-
-    const updated = await toggleFavorite(
-      "terminology",
-      term.id
-    );
-
-    const isSaved =
-      updated.terminology.includes(term.id);
-
-    setFavorite(isSaved);
   }
 
   const backText =
@@ -65,40 +108,69 @@ export default function TermDetailScreen({
 
   const definitionTitle =
     language === "english"
-      ? "Definition"
+      ? "1. Definition"
       : language === "dari"
-      ? "تعریف"
-      : "تعریف";
+      ? "۱. تعریف"
+      : "۱. تعریف";
 
   const explanationTitle =
     language === "english"
-      ? "Simple Explanation"
+      ? "2. Simple Explanation"
       : language === "dari"
-      ? "تشریح ساده"
-      : "ساده تشریح";
+      ? "۲. تشریح ساده"
+      : "۲. ساده تشریح";
 
   const exampleTitle =
     language === "english"
-      ? "Example"
+      ? "3. Example"
       : language === "dari"
-      ? "مثال"
-      : "مثال";
+      ? "۳. مثال"
+      : "۳. مثال";
+
+  const notFoundText =
+    language === "english"
+      ? "Term not found."
+      : language === "dari"
+      ? "اصطلاح پیدا نشد."
+      : "اصطلاح پیدا نه شوه.";
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}>
+          <ActivityIndicator
+            size="large"
+            color={COLORS.gold}
+          />
+
+          <Text style={styles.loadingText}>
+            {language === "english"
+              ? "Loading..."
+              : language === "dari"
+              ? "در حال بارگذاری..."
+              : "لوډ کېږي..."}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!term) {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
+          <Text style={styles.notFoundIcon}>
+            📚
+          </Text>
+
           <Text style={styles.notFound}>
-            {language === "english"
-              ? "Term not found."
-              : language === "dari"
-              ? "اصطلاح پیدا نشد."
-              : "اصطلاح پیدا نه شوه."}
+            {notFoundText}
           </Text>
 
           <TouchableOpacity
             style={styles.backButtonLarge}
             onPress={onBack}
+            activeOpacity={0.8}
           >
             <Text style={styles.backButtonText}>
               {backText}
@@ -110,12 +182,18 @@ export default function TermDetailScreen({
   }
 
   const data =
-    term[language] || term.pashto;
+    term?.[language] ||
+    term?.pashto ||
+    {};
+
+  const explanation =
+    data.explanation ||
+    data.simpleExplanation ||
+    "";
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -135,6 +213,12 @@ export default function TermDetailScreen({
             style={styles.favoriteButton}
             onPress={handleFavorite}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={
+              favorite
+                ? "Remove from favorites"
+                : "Add to favorites"
+            }
           >
             <Text style={styles.favoriteIcon}>
               {favorite ? "⭐" : "☆"}
@@ -148,7 +232,7 @@ export default function TermDetailScreen({
         >
           <View style={styles.titleCard}>
             <Text style={styles.term}>
-              {data.term}
+              {data.term || "—"}
             </Text>
           </View>
 
@@ -159,7 +243,7 @@ export default function TermDetailScreen({
 
           <Section
             title={explanationTitle}
-            text={data.explanation}
+            text={explanation}
           />
 
           <Section
@@ -167,7 +251,6 @@ export default function TermDetailScreen({
             text={data.example}
           />
         </ScrollView>
-
       </View>
     </SafeAreaView>
   );
@@ -182,7 +265,7 @@ function Section({ title, text }) {
 
       <View style={styles.sectionCard}>
         <Text style={styles.sectionText}>
-          {text}
+          {text || "—"}
         </Text>
       </View>
     </View>
@@ -192,55 +275,56 @@ function Section({ title, text }) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: COLORS.navy
+    backgroundColor: COLORS.navy,
   },
 
   container: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 10
+    paddingTop: 10,
   },
 
   header: {
-    height: 52,
+    minHeight: 52,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between"
+    justifyContent: "space-between",
   },
 
   backButton: {
     minHeight: 44,
     minWidth: 80,
     flexDirection: "row",
-    alignItems: "center"
+    alignItems: "center",
   },
 
   backIcon: {
     color: COLORS.gold,
     fontSize: 34,
-    lineHeight: 36
+    lineHeight: 36,
   },
 
   backText: {
     color: COLORS.white,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "800",
+    marginLeft: 2,
   },
 
   favoriteButton: {
     width: 48,
     height: 44,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
   },
 
   favoriteIcon: {
-    fontSize: 28
+    fontSize: 28,
   },
 
   content: {
     paddingTop: 14,
-    paddingBottom: 30
+    paddingBottom: 30,
   },
 
   titleCard: {
@@ -251,25 +335,25 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     paddingHorizontal: 18,
     alignItems: "center",
-    marginBottom: 22
+    marginBottom: 22,
   },
 
   term: {
     color: COLORS.gold,
     fontSize: 30,
     fontWeight: "900",
-    textAlign: "center"
+    textAlign: "center",
   },
 
   section: {
-    marginBottom: 18
+    marginBottom: 18,
   },
 
   sectionTitle: {
     color: COLORS.gold,
     fontSize: 18,
     fontWeight: "800",
-    marginBottom: 9
+    marginBottom: 9,
   },
 
   sectionCard: {
@@ -277,38 +361,53 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#315044",
     borderRadius: 14,
-    padding: 17
+    padding: 17,
   },
 
   sectionText: {
     color: COLORS.white,
     fontSize: 15,
-    lineHeight: 25
+    lineHeight: 25,
   },
 
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 24
+    paddingHorizontal: 24,
+  },
+
+  loadingText: {
+    color: COLORS.lightGray,
+    fontSize: 15,
+    marginTop: 12,
+  },
+
+  notFoundIcon: {
+    fontSize: 44,
+    marginBottom: 12,
   },
 
   notFound: {
     color: COLORS.lightGray,
     fontSize: 16,
-    marginBottom: 20
+    marginBottom: 20,
+    textAlign: "center",
   },
 
   backButtonLarge: {
     backgroundColor: COLORS.gold,
     borderRadius: 12,
     paddingHorizontal: 28,
-    paddingVertical: 14
+    paddingVertical: 14,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   backButtonText: {
     color: COLORS.navy,
     fontWeight: "800",
-    fontSize: 15
-  }
+    fontSize: 15,
+  },
 });
