@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  View
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import { COLORS } from "../constants/app";
@@ -12,18 +14,10 @@ import { getProgress } from "../engine/caseProgress";
 
 export default function ProfileProgressScreen({
   language = "pashto",
-  onBack
+  onBack,
 }) {
   const [progress, setProgress] = useState(null);
-
-  useEffect(() => {
-    loadProgress();
-  }, []);
-
-  async function loadProgress() {
-    const data = await getProgress();
-    setProgress(data);
-  }
+  const [refreshing, setRefreshing] = useState(false);
 
   const text =
     language === "english"
@@ -37,7 +31,9 @@ export default function ProfileProgressScreen({
           defense: "Defense Attorney",
           skill: "Skill",
           latest: "Latest Activity",
-          noActivity: "No activity yet."
+          noActivity: "No activity yet.",
+          completed: "Completed Cases",
+          cases: "cases",
         }
       : language === "dari"
       ? {
@@ -50,7 +46,9 @@ export default function ProfileProgressScreen({
           defense: "وکیل مدافع",
           skill: "مهارت",
           latest: "آخرین فعالیت",
-          noActivity: "هنوز فعالیتی وجود ندارد."
+          noActivity: "هنوز فعالیتی وجود ندارد.",
+          completed: "قضایای تکمیل‌شده",
+          cases: "قضیه",
         }
       : {
           title: "ستا پرمختګ",
@@ -62,34 +60,85 @@ export default function ProfileProgressScreen({
           defense: "مدافع وکیل",
           skill: "مهارت",
           latest: "وروستی فعالیت",
-          noActivity: "تر اوسه هېڅ فعالیت نشته."
+          noActivity: "تر اوسه هېڅ فعالیت نشته.",
+          completed: "بشپړې شوې قضیې",
+          cases: "قضیې",
         };
+
+  const loadProgress = useCallback(async () => {
+    try {
+      const data = await getProgress();
+
+      setProgress(
+        data && typeof data === "object"
+          ? data
+          : null
+      );
+    } catch (error) {
+      console.error(
+        "LegalMind progress load error:",
+        error
+      );
+
+      setProgress(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProgress();
+  }, [loadProgress]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadProgress();
+    setRefreshing(false);
+  }
 
   if (!progress) {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
-          <Text style={styles.loading}>
-            ...
-          </Text>
+          <Text style={styles.loading}>...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  const level = normalizeNumber(
+    progress.level,
+    1,
+    1,
+    10
+  );
+
+  const points = normalizeNumber(
+    progress.progressPoints,
+    0,
+    0,
+    1000000
+  );
+
   const roles = progress.roles || {};
+
+  const judge = roles.judge || {};
+  const prosecutor = roles.prosecutor || {};
+  const defense = roles.defense || {};
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-
         <View style={styles.header}>
-          <Text
+          <TouchableOpacity
+            style={styles.backButton}
             onPress={onBack}
-            style={styles.back}
+            activeOpacity={0.8}
           >
-            ‹ {text.back}
-          </Text>
+            <Text style={styles.backIcon}>‹</Text>
+
+            <Text style={styles.backText}>
+              {text.back}
+            </Text>
+          </TouchableOpacity>
 
           <Text style={styles.headerTitle}>
             📊 {text.title}
@@ -101,39 +150,67 @@ export default function ProfileProgressScreen({
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.gold}
+            />
+          }
         >
-
           <View style={styles.levelCard}>
             <Text style={styles.levelLabel}>
               🏆 {text.level}
             </Text>
 
             <Text style={styles.levelNumber}>
-              {progress.level || 1}
+              {level}
             </Text>
 
             <Text style={styles.points}>
-              ⭐ {progress.progressPoints || 0}{" "}
-              {text.points}
+              ⭐ {points} {text.points}
             </Text>
           </View>
 
           <RoleProgress
             icon="👨‍⚖️"
             title={text.judge}
-            skill={roles.judge?.skill || 0}
+            skill={judge.skill}
+            completedCases={
+              Array.isArray(judge.completedCases)
+                ? judge.completedCases.length
+                : 0
+            }
+            completedText={text.completed}
+            casesText={text.cases}
           />
 
           <RoleProgress
             icon="⚖️"
             title={text.prosecutor}
-            skill={roles.prosecutor?.skill || 0}
+            skill={prosecutor.skill}
+            completedCases={
+              Array.isArray(
+                prosecutor.completedCases
+              )
+                ? prosecutor.completedCases.length
+                : 0
+            }
+            completedText={text.completed}
+            casesText={text.cases}
           />
 
           <RoleProgress
             icon="👨‍💼"
             title={text.defense}
-            skill={roles.defense?.skill || 0}
+            skill={defense.skill}
+            completedCases={
+              Array.isArray(defense.completedCases)
+                ? defense.completedCases.length
+                : 0
+            }
+            completedText={text.completed}
+            casesText={text.cases}
           />
 
           <View style={styles.activityCard}>
@@ -142,11 +219,12 @@ export default function ProfileProgressScreen({
             </Text>
 
             <Text style={styles.activityText}>
-              {progress.lastActivity ||
-                text.noActivity}
+              {getActivityText(
+                progress.lastActivity,
+                text.noActivity
+              )}
             </Text>
           </View>
-
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -156,11 +234,23 @@ export default function ProfileProgressScreen({
 function RoleProgress({
   icon,
   title,
-  skill
+  skill,
+  completedCases,
+  completedText,
+  casesText,
 }) {
-  const safeSkill = Math.max(
+  const safeSkill = normalizeNumber(
+    skill,
     0,
-    Math.min(100, Number(skill) || 0)
+    0,
+    100
+  );
+
+  const safeCompleted = normalizeNumber(
+    completedCases,
+    0,
+    0,
+    100
   );
 
   return (
@@ -180,40 +270,84 @@ function RoleProgress({
           style={[
             styles.progressFill,
             {
-              width: `${safeSkill}%`
-            }
+              width: `${safeSkill}%`,
+            },
           ]}
         />
       </View>
+
+      <Text style={styles.completedText}>
+        {completedText}: {safeCompleted} {casesText}
+      </Text>
     </View>
   );
+}
+
+function normalizeNumber(
+  value,
+  fallback,
+  minimum,
+  maximum
+) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return fallback;
+  }
+
+  return Math.max(
+    minimum,
+    Math.min(maximum, Math.floor(number))
+  );
+}
+
+function getActivityText(value, fallback) {
+  if (
+    typeof value === "string" &&
+    value.trim()
+  ) {
+    return value.trim();
+  }
+
+  return fallback;
 }
 
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: COLORS.navy
+    backgroundColor: COLORS.navy,
   },
 
   container: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 10
+    paddingTop: 10,
   },
 
   header: {
     height: 54,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between"
+    justifyContent: "space-between",
   },
 
-  back: {
+  backButton: {
     minWidth: 80,
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  backIcon: {
+    color: COLORS.gold,
+    fontSize: 34,
+    lineHeight: 36,
+  },
+
+  backText: {
     color: COLORS.white,
     fontSize: 14,
     fontWeight: "800",
-    paddingVertical: 12
   },
 
   headerTitle: {
@@ -221,16 +355,16 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 20,
     fontWeight: "900",
-    textAlign: "center"
+    textAlign: "center",
   },
 
   headerSpace: {
-    width: 80
+    width: 80,
   },
 
   content: {
     paddingTop: 12,
-    paddingBottom: 35
+    paddingBottom: 35,
   },
 
   levelCard: {
@@ -240,26 +374,26 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 22,
     alignItems: "center",
-    marginBottom: 16
+    marginBottom: 16,
   },
 
   levelLabel: {
     color: COLORS.gold,
     fontSize: 15,
-    fontWeight: "800"
+    fontWeight: "800",
   },
 
   levelNumber: {
     color: COLORS.white,
     fontSize: 48,
     fontWeight: "900",
-    marginVertical: 5
+    marginVertical: 5,
   },
 
   points: {
     color: COLORS.white,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "700",
   },
 
   roleCard: {
@@ -268,40 +402,47 @@ const styles = StyleSheet.create({
     borderColor: "#315044",
     borderRadius: 15,
     padding: 15,
-    marginBottom: 10
+    marginBottom: 10,
   },
 
   roleHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 11
+    marginBottom: 11,
   },
 
   roleTitle: {
     flex: 1,
     color: COLORS.white,
     fontSize: 15,
-    fontWeight: "800"
+    fontWeight: "800",
   },
 
   skill: {
     color: COLORS.gold,
     fontSize: 14,
-    fontWeight: "900"
+    fontWeight: "900",
   },
 
   progressBackground: {
     height: 10,
     backgroundColor: "#263A46",
     borderRadius: 5,
-    overflow: "hidden"
+    overflow: "hidden",
   },
 
   progressFill: {
     height: "100%",
     backgroundColor: COLORS.gold,
-    borderRadius: 5
+    borderRadius: 5,
+  },
+
+  completedText: {
+    color: "#8997A2",
+    fontSize: 11,
+    marginTop: 9,
+    fontWeight: "600",
   },
 
   activityCard: {
@@ -310,30 +451,31 @@ const styles = StyleSheet.create({
     borderColor: "#315044",
     borderRadius: 15,
     padding: 16,
-    marginTop: 8
+    marginTop: 8,
   },
 
   activityTitle: {
     color: COLORS.gold,
     fontSize: 16,
     fontWeight: "900",
-    marginBottom: 8
+    marginBottom: 8,
   },
 
   activityText: {
     color: COLORS.lightGray,
     fontSize: 14,
-    lineHeight: 21
+    lineHeight: 21,
   },
 
   center: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    backgroundColor: COLORS.navy,
   },
 
   loading: {
     color: COLORS.gold,
-    fontSize: 25
-  }
+    fontSize: 25,
+  },
 });
