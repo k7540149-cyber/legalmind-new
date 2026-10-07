@@ -1,3 +1,5 @@
+import { ROLES } from "../data/roles";
+
 export function clampProgress(value = 0) {
   const number = Number(value);
 
@@ -20,33 +22,48 @@ export function clampPoints(value = 0) {
 
 export function validateRoleProgress(role = {}) {
   return {
-    skill: clampProgress(role?.skill),
-    unlockedCases: Array.isArray(role?.unlockedCases)
-      ? [...new Set(role.unlockedCases)]
-      : [],
     completedCases: Array.isArray(role?.completedCases)
-      ? [...new Set(role.completedCases)]
-      : []
+      ? [...new Set(role.completedCases.filter(Boolean))]
+      : [],
+
+    unlockedCases: Array.isArray(role?.unlockedCases)
+      ? [...new Set(role.unlockedCases.filter(Boolean))]
+      : [],
+
+    skill: clampProgress(role?.skill),
   };
 }
 
 export function validateProgress(progress = {}) {
-  const judge = validateRoleProgress(progress?.judge);
-  const prosecutor = validateRoleProgress(progress?.prosecutor);
-  const defense = validateRoleProgress(progress?.defense);
+  const roles = progress?.roles || {};
 
   return {
     ...progress,
+
     level: Math.max(
       1,
       Number.isFinite(Number(progress?.level))
         ? Math.floor(Number(progress.level))
         : 1
     ),
-    points: clampPoints(progress?.points),
-    judge,
-    prosecutor,
-    defense
+
+    progressPoints: clampPoints(
+      progress?.progressPoints
+    ),
+
+    roles: {
+      [ROLES.JUDGE]: validateRoleProgress(
+        roles?.[ROLES.JUDGE]
+      ),
+
+      [ROLES.PROSECUTOR]: validateRoleProgress(
+        roles?.[ROLES.PROSECUTOR]
+      ),
+
+      [ROLES.DEFENSE]: validateRoleProgress(
+        roles?.[ROLES.DEFENSE]
+      ),
+    },
   };
 }
 
@@ -54,22 +71,31 @@ export function addProgressPoints(
   currentPoints = 0,
   pointsToAdd = 0
 ) {
-  return clampPoints(currentPoints) +
-    Math.max(0, Math.floor(Number(pointsToAdd) || 0));
+  const current = clampPoints(currentPoints);
+  const added = Math.max(
+    0,
+    Math.floor(Number(pointsToAdd) || 0)
+  );
+
+  return current + added;
 }
 
 export function addUniqueCase(
   caseIds = [],
   caseId
 ) {
+  const existing = Array.isArray(caseIds)
+    ? caseIds.filter(Boolean)
+    : [];
+
   if (!caseId) {
-    return [...new Set(caseIds)];
+    return [...new Set(existing)];
   }
 
   return [
     ...new Set([
-      ...(Array.isArray(caseIds) ? caseIds : []),
-      caseId
-    ])
+      ...existing,
+      caseId,
+    ]),
   ];
 }
