@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
 import { COLORS } from "../constants/app";
@@ -15,31 +16,23 @@ import { getProgress } from "../engine/caseProgress";
 export default function ProfileScreen({
   language = "pashto",
   onBack,
-  onNavigate
+  onOpenProgress,
+  onOpenAchievements,
+  onOpenSettings,
 }) {
   const [profile, setProfile] = useState({
     name: "",
     surname: "",
-    email: ""
+    email: "",
   });
 
   const [progress, setProgress] = useState({
     level: 1,
     progressPoints: 0,
-    roles: {}
+    roles: {},
   });
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  async function loadProfile() {
-    const savedProfile = await getProfile();
-    const savedProgress = await getProgress();
-
-    setProfile(savedProfile);
-    setProgress(savedProgress);
-  }
+  const [refreshing, setRefreshing] = useState(false);
 
   const text =
     language === "english"
@@ -50,21 +43,25 @@ export default function ProfileScreen({
           judge: "Judge",
           prosecutor: "Prosecutor",
           defense: "Defense Attorney",
+          roleProgress: "Role Progress",
+          progress: "Your Progress",
           achievements: "Achievements",
           settings: "Settings",
-          back: "Back"
+          back: "Back",
         }
       : language === "dari"
       ? {
           profile: "پروفایل",
           level: "سطح",
-          points: "امتیاز پیشرفت",
+          points: "امتیازات پیشرفت",
           judge: "قاضی",
           prosecutor: "څارنوال",
           defense: "وکیل مدافع",
+          roleProgress: "پیشرفت نقش‌ها",
+          progress: "پیشرفت شما",
           achievements: "دستاوردها",
           settings: "تنظیمات",
-          back: "برگشت"
+          back: "برگشت",
         }
       : {
           profile: "پروفایل",
@@ -73,33 +70,110 @@ export default function ProfileScreen({
           judge: "قاضي",
           prosecutor: "څارنوال",
           defense: "مدافع وکیل",
+          roleProgress: "د رولونو پرمختګ",
+          progress: "ستا پرمختګ",
           achievements: "لاسته راوړنې",
           settings: "تنظیمات",
-          back: "بېرته"
+          back: "بېرته",
         };
 
-  const judgeSkill =
-    progress.roles?.judge?.skill || 0;
+  const loadProfile = useCallback(async () => {
+    try {
+      const savedProfile = await getProfile();
+      const savedProgress = await getProgress();
 
-  const prosecutorSkill =
-    progress.roles?.prosecutor?.skill || 0;
+      if (savedProfile && typeof savedProfile === "object") {
+        setProfile({
+          name: savedProfile.name || "",
+          surname: savedProfile.surname || "",
+          email: savedProfile.email || "",
+        });
+      }
 
-  const defenseSkill =
-    progress.roles?.defense?.skill || 0;
+      if (savedProgress && typeof savedProgress === "object") {
+        setProgress({
+          level: normalizeNumber(
+            savedProgress.level,
+            1,
+            1,
+            10
+          ),
+          progressPoints: normalizeNumber(
+            savedProgress.progressPoints,
+            0,
+            0,
+            1000000
+          ),
+          roles:
+            savedProgress.roles &&
+            typeof savedProgress.roles === "object"
+              ? savedProgress.roles
+              : {},
+        });
+      }
+    } catch (error) {
+      console.error(
+        "LegalMind profile load error:",
+        error
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadProfile();
+    setRefreshing(false);
+  }
+
+  const judgeSkill = normalizeNumber(
+    progress.roles?.judge?.skill,
+    0,
+    0,
+    100
+  );
+
+  const prosecutorSkill = normalizeNumber(
+    progress.roles?.prosecutor?.skill,
+    0,
+    0,
+    100
+  );
+
+  const defenseSkill = normalizeNumber(
+    progress.roles?.defense?.skill,
+    0,
+    0,
+    100
+  );
+
+  const level = normalizeNumber(
+    progress.level,
+    1,
+    1,
+    10
+  );
+
+  const points = normalizeNumber(
+    progress.progressPoints,
+    0,
+    0,
+    1000000
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={onBack}
             activeOpacity={0.8}
           >
-            <Text style={styles.backIcon}>
-              ‹
-            </Text>
+            <Text style={styles.backIcon}>‹</Text>
 
             <Text style={styles.backText}>
               {text.back}
@@ -107,7 +181,7 @@ export default function ProfileScreen({
           </TouchableOpacity>
 
           <Text style={styles.headerTitle}>
-            {text.profile}
+            👤 {text.profile}
           </Text>
 
           <View style={styles.headerSpace} />
@@ -116,8 +190,14 @@ export default function ProfileScreen({
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.gold}
+            />
+          }
         >
-
           <View style={styles.profileCard}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
@@ -146,7 +226,7 @@ export default function ProfileScreen({
               </Text>
 
               <Text style={styles.statValue}>
-                {progress.level || 1}
+                {level}
               </Text>
             </View>
 
@@ -162,17 +242,13 @@ export default function ProfileScreen({
               </Text>
 
               <Text style={styles.statValue}>
-                {progress.progressPoints || 0}
+                {points}
               </Text>
             </View>
           </View>
 
           <Text style={styles.sectionTitle}>
-            {language === "english"
-              ? "Role Progress"
-              : language === "dari"
-              ? "پیشرفت نقش‌ها"
-              : "د رولونو پرمختګ"}
+            {text.roleProgress}
           </Text>
 
           <RoleProgress
@@ -196,9 +272,25 @@ export default function ProfileScreen({
           <TouchableOpacity
             style={styles.actionCard}
             activeOpacity={0.82}
-            onPress={() =>
-              onNavigate?.("Achievements")
-            }
+            onPress={onOpenProgress}
+          >
+            <Text style={styles.actionIcon}>
+              📊
+            </Text>
+
+            <Text style={styles.actionText}>
+              {text.progress}
+            </Text>
+
+            <Text style={styles.arrow}>
+              ›
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionCard}
+            activeOpacity={0.82}
+            onPress={onOpenAchievements}
           >
             <Text style={styles.actionIcon}>
               🏆
@@ -216,9 +308,7 @@ export default function ProfileScreen({
           <TouchableOpacity
             style={styles.actionCard}
             activeOpacity={0.82}
-            onPress={() =>
-              onNavigate?.("Settings")
-            }
+            onPress={onOpenSettings}
           >
             <Text style={styles.actionIcon}>
               ⚙️
@@ -232,7 +322,6 @@ export default function ProfileScreen({
               ›
             </Text>
           </TouchableOpacity>
-
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -242,11 +331,13 @@ export default function ProfileScreen({
 function RoleProgress({
   icon,
   title,
-  value
+  value,
 }) {
-  const safeValue = Math.max(
+  const safeValue = normalizeNumber(
+    value,
     0,
-    Math.min(100, Number(value) || 0)
+    0,
+    100
   );
 
   return (
@@ -270,8 +361,8 @@ function RoleProgress({
           style={[
             styles.progressFill,
             {
-              width: `${safeValue}%`
-            }
+              width: `${safeValue}%`,
+            },
           ]}
         />
       </View>
@@ -279,59 +370,80 @@ function RoleProgress({
   );
 }
 
+function normalizeNumber(
+  value,
+  fallback,
+  minimum,
+  maximum
+) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return fallback;
+  }
+
+  return Math.max(
+    minimum,
+    Math.min(
+      maximum,
+      Math.floor(number)
+    )
+  );
+}
+
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: COLORS.navy
+    backgroundColor: COLORS.navy,
   },
 
   container: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 10
+    paddingTop: 10,
   },
 
   header: {
     height: 54,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between"
+    justifyContent: "space-between",
   },
 
   backButton: {
     minWidth: 80,
     minHeight: 44,
     flexDirection: "row",
-    alignItems: "center"
+    alignItems: "center",
   },
 
   backIcon: {
     color: COLORS.gold,
     fontSize: 34,
-    lineHeight: 36
+    lineHeight: 36,
   },
 
   backText: {
     color: COLORS.white,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "800",
   },
 
   headerTitle: {
     flex: 1,
     color: COLORS.white,
     fontSize: 20,
-    fontWeight: "800",
-    textAlign: "center"
+    fontWeight: "900",
+    textAlign: "center",
   },
 
   headerSpace: {
-    width: 80
+    width: 80,
   },
 
   content: {
     paddingTop: 12,
-    paddingBottom: 30
+    paddingBottom: 35,
   },
 
   profileCard: {
@@ -341,7 +453,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     paddingVertical: 24,
-    paddingHorizontal: 16
+    paddingHorizontal: 16,
   },
 
   avatar: {
@@ -351,25 +463,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#102536",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12
+    marginBottom: 12,
   },
 
   avatarText: {
-    fontSize: 38
+    fontSize: 38,
   },
 
   name: {
     color: COLORS.white,
     fontSize: 23,
-    fontWeight: "800",
-    textAlign: "center"
+    fontWeight: "900",
+    textAlign: "center",
   },
 
   email: {
     color: COLORS.lightGray,
     fontSize: 14,
     marginTop: 7,
-    textAlign: "center"
+    textAlign: "center",
   },
 
   statsCard: {
@@ -381,44 +493,44 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-around"
+    justifyContent: "space-around",
   },
 
   stat: {
     flex: 1,
-    alignItems: "center"
+    alignItems: "center",
   },
 
   statIcon: {
     fontSize: 25,
-    marginBottom: 5
+    marginBottom: 5,
   },
 
   statLabel: {
     color: COLORS.lightGray,
     fontSize: 12,
-    textAlign: "center"
+    textAlign: "center",
   },
 
   statValue: {
     color: COLORS.gold,
     fontSize: 22,
     fontWeight: "900",
-    marginTop: 3
+    marginTop: 3,
   },
 
   divider: {
     width: 1,
     height: 55,
-    backgroundColor: "#315044"
+    backgroundColor: "#315044",
   },
 
   sectionTitle: {
     color: COLORS.gold,
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "900",
     marginTop: 24,
-    marginBottom: 10
+    marginBottom: 10,
   },
 
   roleCard: {
@@ -427,44 +539,44 @@ const styles = StyleSheet.create({
     borderColor: "#315044",
     borderRadius: 14,
     padding: 14,
-    marginBottom: 10
+    marginBottom: 10,
   },
 
   roleHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10
+    marginBottom: 10,
   },
 
   roleIcon: {
     fontSize: 24,
-    width: 36
+    width: 36,
   },
 
   roleTitle: {
     flex: 1,
     color: COLORS.white,
     fontSize: 15,
-    fontWeight: "700"
+    fontWeight: "800",
   },
 
   roleValue: {
     color: COLORS.gold,
     fontSize: 14,
-    fontWeight: "800"
+    fontWeight: "900",
   },
 
   progressTrack: {
     height: 8,
     borderRadius: 4,
     backgroundColor: "#203746",
-    overflow: "hidden"
+    overflow: "hidden",
   },
 
   progressFill: {
     height: "100%",
     backgroundColor: COLORS.gold,
-    borderRadius: 4
+    borderRadius: 4,
   },
 
   actionCard: {
@@ -476,23 +588,23 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingHorizontal: 15,
     flexDirection: "row",
-    alignItems: "center"
+    alignItems: "center",
   },
 
   actionIcon: {
     fontSize: 24,
-    width: 40
+    width: 40,
   },
 
   actionText: {
     flex: 1,
     color: COLORS.white,
     fontSize: 15,
-    fontWeight: "700"
+    fontWeight: "800",
   },
 
   arrow: {
     color: COLORS.gold,
-    fontSize: 32
-  }
+    fontSize: 32,
+  },
 });
