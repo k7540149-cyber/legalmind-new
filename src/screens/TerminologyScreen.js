@@ -6,77 +6,164 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
-import {
-  COLORS
-} from "../constants/app";
-
+import { COLORS } from "../constants/app";
 import {
   terminologyLetters,
-  getTermsByLetter
+  getTermsByLetter,
 } from "../data/terminology";
 
 export default function TerminologyScreen({
   language = "pashto",
   onBack,
-  onOpenTerm
+  onOpenTerm,
 }) {
   const [selectedLetter, setSelectedLetter] =
-    useState(terminologyLetters[0]);
+    useState(terminologyLetters[0] || "");
 
   const [search, setSearch] = useState("");
 
-  const terms = useMemo(() => {
-    const byLetter = getTermsByLetter(
-      selectedLetter,
-      language
-    );
+  const text =
+    language === "english"
+      ? {
+          title: "Legal Terminology",
+          back: "Back",
+          search: "Search legal term...",
+          empty: "No terms found.",
+          all: "All",
+        }
+      : language === "dari"
+      ? {
+          title: "اصطلاحات حقوقی",
+          back: "برگشت",
+          search: "جستجوی اصطلاح حقوقی...",
+          empty: "هیچ اصطلاحی پیدا نشد.",
+          all: "همه",
+        }
+      : {
+          title: "حقوقي ترمینالوژي",
+          back: "بېرته",
+          search: "حقوقي اصطلاح ولټوئ...",
+          empty: "هیڅ اصطلاح پیدا نه شوه.",
+          all: "ټول",
+        };
 
-    if (!search.trim()) {
-      return byLetter;
+  const normalizedSearch = search
+    .trim()
+    .toLowerCase();
+
+  const terms = useMemo(() => {
+    let result = [];
+
+    try {
+      if (normalizedSearch) {
+        const allLetters =
+          Array.isArray(terminologyLetters)
+            ? terminologyLetters
+            : [];
+
+        const seen = new Set();
+
+        allLetters.forEach((letter) => {
+          const letterTerms =
+            getTermsByLetter(
+              letter,
+              language
+            );
+
+          if (!Array.isArray(letterTerms)) {
+            return;
+          }
+
+          letterTerms.forEach((item) => {
+            if (
+              item?.id &&
+              !seen.has(item.id)
+            ) {
+              seen.add(item.id);
+              result.push(item);
+            }
+          });
+        });
+      } else {
+        result = getTermsByLetter(
+          selectedLetter,
+          language
+        );
+
+        if (!Array.isArray(result)) {
+          result = [];
+        }
+      }
+    } catch (error) {
+      console.error(
+        "LegalMind terminology error:",
+        error
+      );
+
+      result = [];
     }
 
-    const query = search
-      .trim()
-      .toLowerCase();
+    if (!normalizedSearch) {
+      return result;
+    }
 
-    return byLetter.filter((item) => {
-      const term =
-        item?.[language]?.term || "";
+    return result.filter((item) => {
+      const data =
+        item?.[language] ||
+        item?.pashto ||
+        null;
 
-      return term
-        .toLowerCase()
-        .includes(query);
+      if (!data) return false;
+
+      const term = String(
+        data.term || ""
+      ).toLowerCase();
+
+      const definition = String(
+        data.definition || ""
+      ).toLowerCase();
+
+      const simpleExplanation =
+        String(
+          data.simpleExplanation || ""
+        ).toLowerCase();
+
+      return (
+        term.includes(normalizedSearch) ||
+        definition.includes(normalizedSearch) ||
+        simpleExplanation.includes(
+          normalizedSearch
+        )
+      );
     });
-  }, [selectedLetter, search, language]);
+  }, [
+    selectedLetter,
+    normalizedSearch,
+    language,
+  ]);
 
-  const title =
-    language === "english"
-      ? "Legal Terminology"
-      : language === "dari"
-      ? "اصطلاحات حقوقی"
-      : "حقوقي ترمینالوژي";
+  function handleLetterPress(letter) {
+    setSelectedLetter(letter);
+    setSearch("");
+  }
 
-  const searchPlaceholder =
-    language === "english"
-      ? "Search legal term..."
-      : language === "dari"
-      ? "جستجوی اصطلاح حقوقی..."
-      : "حقوقي اصطلاح ولټوئ...";
+  function handleOpenTerm(termId) {
+    if (
+      typeof onOpenTerm !== "function" ||
+      !termId
+    ) {
+      return;
+    }
 
-  const emptyText =
-    language === "english"
-      ? "No terms found."
-      : language === "dari"
-      ? "هیچ اصطلاحی پیدا نشد."
-      : "هیڅ اصطلاح پیدا نه شوه.";
+    onOpenTerm(termId);
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -88,16 +175,15 @@ export default function TerminologyScreen({
             </Text>
 
             <Text style={styles.backText}>
-              {language === "english"
-                ? "Back"
-                : language === "dari"
-                ? "برگشت"
-                : "بېرته"}
+              {text.back}
             </Text>
           </TouchableOpacity>
 
-          <Text style={styles.title}>
-            {title}
+          <Text
+            style={styles.headerTitle}
+            numberOfLines={2}
+          >
+            📚 {text.title}
           </Text>
 
           <View style={styles.headerSpace} />
@@ -106,58 +192,71 @@ export default function TerminologyScreen({
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder={searchPlaceholder}
+          placeholder={text.search}
           placeholderTextColor="#7F8C98"
           style={styles.search}
           autoCapitalize="none"
           autoCorrect={false}
+          clearButtonMode="while-editing"
         />
 
         <View style={styles.body}>
-
-          <View style={styles.lettersContainer}>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={
-                styles.lettersContent
-              }
-            >
-              {terminologyLetters.map(
-                (letter) => {
-                  const active =
-                    selectedLetter === letter;
-
-                  return (
-                    <TouchableOpacity
-                      key={letter}
-                      activeOpacity={0.75}
-                      style={[
-                        styles.letterButton,
-                        active &&
-                          styles.activeLetter
-                      ]}
-                      onPress={() => {
-                        setSelectedLetter(letter);
-                        setSearch("");
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.letterText,
-                          active &&
-                            styles.activeLetterText
-                        ]}
-                      >
-                        {letter}
-                      </Text>
-                    </TouchableOpacity>
-                  );
+          {!normalizedSearch ? (
+            <View style={styles.lettersContainer}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={
+                  styles.lettersContent
                 }
-              )}
-            </ScrollView>
-          </View>
+              >
+                {Array.isArray(
+                  terminologyLetters
+                ) &&
+                  terminologyLetters.map(
+                    (letter) => {
+                      const active =
+                        selectedLetter ===
+                        letter;
 
-          <View style={styles.results}>
+                      return (
+                        <TouchableOpacity
+                          key={letter}
+                          activeOpacity={0.75}
+                          style={[
+                            styles.letterButton,
+                            active &&
+                              styles.activeLetter,
+                          ]}
+                          onPress={() =>
+                            handleLetterPress(
+                              letter
+                            )
+                          }
+                        >
+                          <Text
+                            style={[
+                              styles.letterText,
+                              active &&
+                                styles.activeLetterText,
+                            ]}
+                          >
+                            {letter}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    }
+                  )}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          <View
+            style={[
+              styles.results,
+              normalizedSearch &&
+                styles.resultsFull,
+            ]}
+          >
             <ScrollView
               showsVerticalScrollIndicator={false}
               contentContainerStyle={
@@ -171,49 +270,60 @@ export default function TerminologyScreen({
                   </Text>
 
                   <Text style={styles.emptyText}>
-                    {emptyText}
+                    {text.empty}
                   </Text>
                 </View>
               ) : (
-                terms.map((item) => {
+                terms.map((item, index) => {
                   const data =
-                    item[language] ||
-                    item.pashto;
+                    item?.[language] ||
+                    item?.pashto ||
+                    {};
 
                   return (
                     <TouchableOpacity
-                      key={item.id}
+                      key={
+                        item?.id ||
+                        `term-${index}`
+                      }
                       activeOpacity={0.82}
                       style={styles.termCard}
-                      onPress={() => {
-                        if (
-                          typeof onOpenTerm ===
-                          "function"
-                        ) {
-                          onOpenTerm(item.id);
-                        }
-                      }}
+                      onPress={() =>
+                        handleOpenTerm(
+                          item?.id
+                        )
+                      }
                     >
-                      <View style={styles.termInfo}>
+                      <View
+                        style={styles.termInfo}
+                      >
                         <Text
                           style={
                             styles.termTitle
                           }
+                          numberOfLines={2}
                         >
-                          {data.term}
+                          {data.term ||
+                            "—"}
                         </Text>
 
-                        <Text
-                          numberOfLines={2}
-                          style={
-                            styles.termDefinition
-                          }
-                        >
-                          {data.definition}
-                        </Text>
+                        {data.definition ? (
+                          <Text
+                            numberOfLines={3}
+                            style={
+                              styles.termDefinition
+                            }
+                          >
+                            {
+                              data.definition
+                            }
+                          </Text>
+                        ) : null}
                       </View>
 
-                      <Text style={styles.arrow}>
+                      <Text
+                        style={styles.arrow}
+                      >
                         ›
                       </Text>
                     </TouchableOpacity>
@@ -222,7 +332,6 @@ export default function TerminologyScreen({
               )}
             </ScrollView>
           </View>
-
         </View>
       </View>
     </SafeAreaView>
@@ -232,52 +341,53 @@ export default function TerminologyScreen({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: COLORS.navy
+    backgroundColor: COLORS.navy,
   },
 
   container: {
     flex: 1,
     paddingHorizontal: 14,
-    paddingTop: 10
+    paddingTop: 10,
   },
 
   header: {
-    minHeight: 52,
+    minHeight: 54,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between"
+    justifyContent: "space-between",
   },
 
   backButton: {
     minHeight: 44,
     minWidth: 80,
     flexDirection: "row",
-    alignItems: "center"
+    alignItems: "center",
   },
 
   backIcon: {
     color: COLORS.gold,
     fontSize: 34,
-    lineHeight: 36
+    lineHeight: 36,
   },
 
   backText: {
     color: COLORS.white,
     fontSize: 14,
-    fontWeight: "700",
-    marginLeft: 2
+    fontWeight: "800",
+    marginLeft: 2,
   },
 
-  title: {
+  headerTitle: {
     flex: 1,
     color: COLORS.white,
     fontSize: 19,
-    fontWeight: "800",
-    textAlign: "center"
+    fontWeight: "900",
+    textAlign: "center",
+    paddingHorizontal: 5,
   },
 
   headerSpace: {
-    width: 80
+    width: 80,
   },
 
   search: {
@@ -290,22 +400,23 @@ const styles = StyleSheet.create({
     fontSize: 15,
     paddingHorizontal: 15,
     marginTop: 8,
-    marginBottom: 12
+    marginBottom: 12,
   },
 
   body: {
     flex: 1,
-    flexDirection: "row"
+    flexDirection: "row",
   },
 
   lettersContainer: {
     width: 48,
-    marginRight: 10
+    marginRight: 10,
   },
 
   lettersContent: {
     alignItems: "center",
-    paddingVertical: 4
+    paddingVertical: 4,
+    paddingBottom: 20,
   },
 
   letterButton: {
@@ -315,29 +426,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 6,
-    backgroundColor: "#102536"
+    backgroundColor: "#102536",
   },
 
   activeLetter: {
-    backgroundColor: COLORS.gold
+    backgroundColor: COLORS.gold,
   },
 
   letterText: {
     color: COLORS.white,
     fontSize: 17,
-    fontWeight: "700"
+    fontWeight: "800",
   },
 
   activeLetterText: {
-    color: COLORS.navy
+    color: COLORS.navy,
   },
 
   results: {
-    flex: 1
+    flex: 1,
+    minWidth: 0,
+  },
+
+  resultsFull: {
+    width: "100%",
   },
 
   resultsContent: {
-    paddingBottom: 20
+    paddingBottom: 25,
   },
 
   termCard: {
@@ -350,48 +466,48 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     marginBottom: 10,
     flexDirection: "row",
-    alignItems: "center"
+    alignItems: "center",
   },
 
   termInfo: {
     flex: 1,
-    minWidth: 0
+    minWidth: 0,
   },
 
   termTitle: {
     color: COLORS.gold,
     fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 5
+    fontWeight: "900",
+    marginBottom: 5,
   },
 
   termDefinition: {
     color: COLORS.lightGray,
     fontSize: 13,
-    lineHeight: 20
+    lineHeight: 20,
   },
 
   arrow: {
     color: COLORS.gold,
     fontSize: 32,
-    marginLeft: 8
+    marginLeft: 8,
   },
 
   empty: {
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 80
+    paddingTop: 80,
+    paddingHorizontal: 20,
   },
 
   emptyIcon: {
     fontSize: 42,
-    marginBottom: 12
+    marginBottom: 12,
   },
 
   emptyText: {
     color: COLORS.lightGray,
     fontSize: 15,
-    textAlign: "center"
-  }
+    textAlign: "center",
+  },
 });
