@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import OnboardingScreen from "../screens/OnboardingScreen";
 import HomeScreen from "../screens/HomeScreen";
@@ -18,12 +18,34 @@ import ProfileProgressScreen from "../screens/ProfileProgressScreen";
 import { getProfile } from "../services/profileService";
 import { getSettings } from "../services/settingsService";
 
+const SCREENS = {
+  HOME: "home",
+  TERMINOLOGY: "terminology",
+  TERM_DETAIL: "termDetail",
+  PROFILE: "profile",
+  PROGRESS: "progress",
+  ACHIEVEMENTS: "achievements",
+  SETTINGS: "settings",
+  ABOUT: "about",
+  NOTIFICATIONS: "notifications",
+  FAVORITES: "favorites",
+  ROLE_CASES: "roleCases",
+  CASE_DETAIL: "caseDetail",
+  CASE_GAMEPLAY: "caseGameplay",
+};
+
+const DEFAULT_LANGUAGE = "pashto";
+
 export default function AppNavigator() {
   const [loading, setLoading] = useState(true);
   const [setupComplete, setSetupComplete] = useState(false);
+  const [language, setLanguage] = useState(
+    DEFAULT_LANGUAGE
+  );
 
-  const [language, setLanguage] = useState("pashto");
-  const [screen, setScreen] = useState("home");
+  const [screen, setScreen] = useState(
+    SCREENS.HOME
+  );
 
   const [selectedTermId, setSelectedTermId] =
     useState(null);
@@ -34,11 +56,7 @@ export default function AppNavigator() {
   const [selectedCaseId, setSelectedCaseId] =
     useState(null);
 
-  useEffect(() => {
-    initialize();
-  }, []);
-
-  async function initialize() {
+  const initialize = useCallback(async () => {
     try {
       const profile = await getProfile();
       const settings = await getSettings();
@@ -48,30 +66,141 @@ export default function AppNavigator() {
       );
 
       setLanguage(
-        settings?.language || "pashto"
+        settings?.language ||
+          DEFAULT_LANGUAGE
       );
+    } catch (error) {
+      console.error(
+        "LegalMind navigator initialization error:",
+        error
+      );
+
+      setSetupComplete(false);
+      setLanguage(DEFAULT_LANGUAGE);
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
 
   function goHome() {
-    setScreen("home");
+    setScreen(SCREENS.HOME);
+  }
+
+  function openTerminology() {
+    setScreen(SCREENS.TERMINOLOGY);
+  }
+
+  function openTerm(termId) {
+    if (!termId) return;
+
+    setSelectedTermId(termId);
+    setScreen(SCREENS.TERM_DETAIL);
+  }
+
+  function openProfile() {
+    setScreen(SCREENS.PROFILE);
+  }
+
+  function openProgress() {
+    setScreen(SCREENS.PROGRESS);
+  }
+
+  function openAchievements() {
+    setScreen(SCREENS.ACHIEVEMENTS);
+  }
+
+  function openSettings() {
+    setScreen(SCREENS.SETTINGS);
+  }
+
+  function openAbout() {
+    setScreen(SCREENS.ABOUT);
+  }
+
+  function openNotifications() {
+    setScreen(SCREENS.NOTIFICATIONS);
+  }
+
+  function openFavorites() {
+    setScreen(SCREENS.FAVORITES);
   }
 
   function openRole(role) {
+    if (!role) return;
+
     setSelectedRole(role);
-    setScreen("roleCases");
+    setScreen(SCREENS.ROLE_CASES);
   }
 
   function openCase(caseId) {
+    if (!caseId) return;
+
     setSelectedCaseId(caseId);
-    setScreen("caseDetail");
+    setScreen(SCREENS.CASE_DETAIL);
   }
 
   function openGameplay(caseId) {
+    if (!caseId) return;
+
     setSelectedCaseId(caseId);
-    setScreen("caseGameplay");
+    setScreen(SCREENS.CASE_GAMEPLAY);
+  }
+
+  function handleHomeNavigation(destination) {
+    switch (destination) {
+      case "terminology":
+        openTerminology();
+        break;
+
+      case "judge":
+        openRole("judge");
+        break;
+
+      case "prosecutor":
+        openRole("prosecutor");
+        break;
+
+      case "defense":
+        openRole("defense");
+        break;
+
+      case "profile":
+        openProfile();
+        break;
+
+      case "favorites":
+        openFavorites();
+        break;
+
+      case "notifications":
+        openNotifications();
+        break;
+
+      default:
+        break;
+    }
+  }
+
+  function handleSetupComplete() {
+    setSetupComplete(true);
+    setScreen(SCREENS.HOME);
+  }
+
+  function handleLanguageChange(
+    newLanguage
+  ) {
+    if (
+      typeof newLanguage !== "string" ||
+      !newLanguage.trim()
+    ) {
+      return;
+    }
+
+    setLanguage(newLanguage);
   }
 
   if (loading) {
@@ -82,145 +211,121 @@ export default function AppNavigator() {
     return (
       <OnboardingScreen
         language={language}
-        onComplete={() => {
-          setSetupComplete(true);
-          setScreen("home");
-        }}
+        onComplete={handleSetupComplete}
       />
     );
   }
 
-  if (screen === "home") {
+  if (screen === SCREENS.HOME) {
     return (
       <HomeScreen
         language={language}
-        onNavigate={(destination) => {
-          if (destination === "terminology") {
-            setScreen("terminology");
-          }
-
-          if (destination === "judge") {
-            openRole("judge");
-          }
-
-          if (destination === "prosecutor") {
-            openRole("prosecutor");
-          }
-
-          if (destination === "defense") {
-            openRole("defense");
-          }
-
-          if (destination === "profile") {
-            setScreen("profile");
-          }
-
-          if (destination === "favorites") {
-            setScreen("favorites");
-          }
-
-          if (destination === "notifications") {
-            setScreen("notifications");
-          }
-        }}
+        onNavigate={
+          handleHomeNavigation
+        }
       />
     );
   }
 
-  if (screen === "terminology") {
+  if (screen === SCREENS.TERMINOLOGY) {
     return (
       <TerminologyScreen
         language={language}
         onBack={goHome}
-        onOpenTerm={(termId) => {
-          setSelectedTermId(termId);
-          setScreen("termDetail");
-        }}
+        onOpenTerm={openTerm}
       />
     );
   }
 
-  if (screen === "termDetail") {
+  if (screen === SCREENS.TERM_DETAIL) {
     return (
       <TermDetailScreen
         termId={selectedTermId}
         language={language}
         onBack={() =>
-          setScreen("terminology")
+          setScreen(
+            SCREENS.TERMINOLOGY
+          )
         }
       />
     );
   }
 
-  if (screen === "profile") {
+  if (screen === SCREENS.PROFILE) {
     return (
       <ProfileScreen
         language={language}
         onBack={goHome}
-        onOpenProgress={() =>
-          setScreen("progress")
+        onOpenProgress={
+          openProgress
         }
-        onOpenAchievements={() =>
-          setScreen("achievements")
+        onOpenAchievements={
+          openAchievements
         }
-        onOpenSettings={() =>
-          setScreen("settings")
+        onOpenSettings={
+          openSettings
         }
       />
     );
   }
 
-  if (screen === "progress") {
+  if (screen === SCREENS.PROGRESS) {
     return (
       <ProfileProgressScreen
         language={language}
         onBack={() =>
-          setScreen("profile")
+          setScreen(
+            SCREENS.PROFILE
+          )
         }
       />
     );
   }
 
-  if (screen === "achievements") {
+  if (screen === SCREENS.ACHIEVEMENTS) {
     return (
       <AchievementsScreen
         language={language}
         onBack={() =>
-          setScreen("profile")
+          setScreen(
+            SCREENS.PROFILE
+          )
         }
       />
     );
   }
 
-  if (screen === "settings") {
+  if (screen === SCREENS.SETTINGS) {
     return (
       <SettingsScreen
         language={language}
         onBack={() =>
-          setScreen("profile")
+          setScreen(
+            SCREENS.PROFILE
+          )
         }
-        onLanguageChange={(newLanguage) => {
-          setLanguage(newLanguage);
-        }}
-        onAbout={() =>
-          setScreen("about")
+        onLanguageChange={
+          handleLanguageChange
         }
+        onAbout={openAbout}
       />
     );
   }
 
-  if (screen === "about") {
+  if (screen === SCREENS.ABOUT) {
     return (
       <AboutScreen
         language={language}
         onBack={() =>
-          setScreen("settings")
+          setScreen(
+            SCREENS.SETTINGS
+          )
         }
       />
     );
   }
 
-  if (screen === "notifications") {
+  if (screen === SCREENS.NOTIFICATIONS) {
     return (
       <NotificationsScreen
         language={language}
@@ -229,21 +334,18 @@ export default function AppNavigator() {
     );
   }
 
-  if (screen === "favorites") {
+  if (screen === SCREENS.FAVORITES) {
     return (
       <FavoritesScreen
         language={language}
         onBack={goHome}
-        onOpenTerm={(termId) => {
-          setSelectedTermId(termId);
-          setScreen("termDetail");
-        }}
+        onOpenTerm={openTerm}
         onOpenCase={openCase}
       />
     );
   }
 
-  if (screen === "roleCases") {
+  if (screen === SCREENS.ROLE_CASES) {
     return (
       <RoleCasesScreen
         role={selectedRole}
@@ -254,29 +356,35 @@ export default function AppNavigator() {
     );
   }
 
-  if (screen === "caseDetail") {
+  if (screen === SCREENS.CASE_DETAIL) {
     return (
       <CaseDetailScreen
         caseId={selectedCaseId}
         language={language}
         onBack={() =>
-          setScreen("roleCases")
+          setScreen(
+            SCREENS.ROLE_CASES
+          )
         }
         onStart={openGameplay}
       />
     );
   }
 
-  if (screen === "caseGameplay") {
+  if (screen === SCREENS.CASE_GAMEPLAY) {
     return (
       <CaseGameplayScreen
         caseId={selectedCaseId}
         language={language}
         onBack={() =>
-          setScreen("caseDetail")
+          setScreen(
+            SCREENS.CASE_DETAIL
+          )
         }
         onCompleted={() =>
-          setScreen("roleCases")
+          setScreen(
+            SCREENS.ROLE_CASES
+          )
         }
       />
     );
