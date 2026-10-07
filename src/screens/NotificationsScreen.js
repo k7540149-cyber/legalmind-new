@@ -1,56 +1,158 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
 import { COLORS } from "../constants/app";
-import { getNotifications } from "../services/notificationService";
+import {
+  getNotifications,
+  markNotificationAsRead,
+  clearNotifications,
+} from "../services/notificationService";
 
 export default function NotificationsScreen({
   language = "pashto",
-  onBack
+  onBack,
 }) {
   const [notifications, setNotifications] = useState([]);
-
-  useEffect(() => {
-    loadNotifications();
-  }, []);
-
-  async function loadNotifications() {
-    const data = await getNotifications();
-    setNotifications(
-      Array.isArray(data) ? data : []
-    );
-  }
+  const [refreshing, setRefreshing] = useState(false);
 
   const text =
     language === "english"
       ? {
           title: "Notifications",
           back: "Back",
-          empty: "No notifications yet."
+          empty: "No notifications yet.",
+          clear: "Clear all",
+          clearConfirm: "Clear all notifications?",
+          cancel: "Cancel",
+          confirm: "Clear",
+          read: "Read",
+          unread: "Unread",
         }
       : language === "dari"
       ? {
           title: "اعلان‌ها",
           back: "برگشت",
-          empty: "هنوز اعلانی وجود ندارد."
+          empty: "هنوز اعلانی وجود ندارد.",
+          clear: "پاک کردن همه",
+          clearConfirm: "همه اعلان‌ها پاک شوند؟",
+          cancel: "لغو",
+          confirm: "پاک کردن",
+          read: "خوانده شده",
+          unread: "خوانده نشده",
         }
       : {
           title: "خبرتیاوې",
           back: "بېرته",
-          empty: "تر اوسه هېڅ خبرتیا نشته."
+          empty: "تر اوسه هېڅ خبرتیا نشته.",
+          clear: "ټولې پاکې کړه",
+          clearConfirm: "ټولې خبرتیاوې پاکې شي؟",
+          cancel: "لغوه",
+          confirm: "پاکول",
+          read: "لوستل شوې",
+          unread: "نه لوستل شوې",
         };
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await getNotifications();
+
+      setNotifications(
+        Array.isArray(data) ? data : []
+      );
+    } catch (error) {
+      console.error(
+        "LegalMind notifications load error:",
+        error
+      );
+
+      setNotifications([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadNotifications();
+    setRefreshing(false);
+  }
+
+  async function handleRead(notification) {
+    if (!notification?.id || notification.read) {
+      return;
+    }
+
+    try {
+      await markNotificationAsRead(
+        notification.id
+      );
+
+      setNotifications((current) =>
+        current.map((item) =>
+          item.id === notification.id
+            ? {
+                ...item,
+                read: true,
+              }
+            : item
+        )
+      );
+    } catch (error) {
+      console.error(
+        "LegalMind notification read error:",
+        error
+      );
+    }
+  }
+
+  function handleClear() {
+    if (notifications.length === 0) {
+      return;
+    }
+
+    const confirmed =
+      typeof globalThis?.confirm === "function"
+        ? globalThis.confirm(
+            text.clearConfirm
+          )
+        : true;
+
+    if (!confirmed) {
+      return;
+    }
+
+    clearAllNotifications();
+  }
+
+  async function clearAllNotifications() {
+    try {
+      await clearNotifications();
+      setNotifications([]);
+    } catch (error) {
+      console.error(
+        "LegalMind notifications clear error:",
+        error
+      );
+    }
+  }
+
+  const unreadCount = notifications.filter(
+    (item) => !item?.read
+  ).length;
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -73,9 +175,41 @@ export default function NotificationsScreen({
           <View style={styles.headerSpace} />
         </View>
 
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryBadge}>
+            <Text style={styles.summaryText}>
+              {unreadCount}{" "}
+              {language === "english"
+                ? "unread"
+                : language === "dari"
+                ? "خوانده نشده"
+                : "نا لوستل شوې"}
+            </Text>
+          </View>
+
+          {notifications.length > 0 ? (
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={handleClear}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.clearText}>
+                🗑️ {text.clear}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.gold}
+            />
+          }
         >
           {notifications.length === 0 ? (
             <View style={styles.empty}>
@@ -91,36 +225,39 @@ export default function NotificationsScreen({
             notifications.map(
               (notification, index) => {
                 const title =
-                  notification.title?.[
-                    language
-                  ] ||
-                  notification.title?.pashto ||
-                  notification.title ||
-                  "LegalMind";
+                  getLocalizedValue(
+                    notification?.title,
+                    language,
+                    "LegalMind"
+                  );
 
                 const message =
-                  notification.message?.[
-                    language
-                  ] ||
-                  notification.message?.pashto ||
-                  notification.message ||
-                  "";
+                  getLocalizedValue(
+                    notification?.message,
+                    language,
+                    ""
+                  );
 
                 const icon =
-                  notification.icon ||
-                  "🔔";
+                  notification?.icon || "🔔";
+
+                const isRead =
+                  Boolean(notification?.read);
 
                 return (
-                  <View
+                  <TouchableOpacity
                     key={
-                      notification.id ||
-                      index
+                      notification?.id ||
+                      `notification-${index}`
                     }
                     style={[
                       styles.card,
-                      notification.read &&
-                        styles.readCard
+                      isRead && styles.readCard,
                     ]}
+                    onPress={() =>
+                      handleRead(notification)
+                    }
+                    activeOpacity={0.82}
                   >
                     <View style={styles.iconBox}>
                       <Text style={styles.icon}>
@@ -129,32 +266,90 @@ export default function NotificationsScreen({
                     </View>
 
                     <View style={styles.info}>
-                      <Text style={styles.title}>
-                        {title}
-                      </Text>
+                      <View style={styles.titleRow}>
+                        <Text
+                          style={[
+                            styles.title,
+                            isRead &&
+                              styles.readTitle,
+                          ]}
+                        >
+                          {title}
+                        </Text>
 
-                      <Text style={styles.message}>
-                        {message}
-                      </Text>
+                        <View
+                          style={[
+                            styles.statusDot,
+                            isRead &&
+                              styles.readDot,
+                          ]}
+                        />
+                      </View>
 
-                      {notification.createdAt ? (
+                      {message ? (
+                        <Text
+                          style={[
+                            styles.message,
+                            isRead &&
+                              styles.readMessage,
+                          ]}
+                        >
+                          {message}
+                        </Text>
+                      ) : null}
+
+                      {notification?.createdAt ? (
                         <Text style={styles.date}>
                           {formatDate(
                             notification.createdAt
                           )}
                         </Text>
                       ) : null}
+
+                      <Text style={styles.status}>
+                        {isRead
+                          ? text.read
+                          : text.unread}
+                      </Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               }
             )
           )}
         </ScrollView>
-
       </View>
     </SafeAreaView>
   );
+}
+
+function getLocalizedValue(
+  value,
+  language,
+  fallback = ""
+) {
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  ) {
+    return (
+      value[language] ||
+      value.pashto ||
+      value.dari ||
+      value.english ||
+      fallback
+    );
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "number"
+  ) {
+    return String(value);
+  }
+
+  return fallback;
 }
 
 function formatDate(value) {
@@ -174,39 +369,39 @@ function formatDate(value) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: COLORS.navy
+    backgroundColor: COLORS.navy,
   },
 
   container: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 10
+    paddingTop: 10,
   },
 
   header: {
     height: 54,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between"
+    justifyContent: "space-between",
   },
 
   backButton: {
     minWidth: 80,
     minHeight: 44,
     flexDirection: "row",
-    alignItems: "center"
+    alignItems: "center",
   },
 
   backIcon: {
     color: COLORS.gold,
     fontSize: 34,
-    lineHeight: 36
+    lineHeight: 36,
   },
 
   backText: {
     color: COLORS.white,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "700",
   },
 
   headerTitle: {
@@ -214,16 +409,51 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 20,
     fontWeight: "800",
-    textAlign: "center"
+    textAlign: "center",
   },
 
   headerSpace: {
-    width: 80
+    width: 80,
+  },
+
+  summaryRow: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+
+  summaryBadge: {
+    backgroundColor: "#102536",
+    borderWidth: 1,
+    borderColor: "#315044",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+
+  summaryText: {
+    color: COLORS.lightGray,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  clearButton: {
+    minHeight: 42,
+    paddingHorizontal: 10,
+    justifyContent: "center",
+  },
+
+  clearText: {
+    color: COLORS.gold,
+    fontSize: 12,
+    fontWeight: "800",
   },
 
   content: {
-    paddingTop: 12,
-    paddingBottom: 30
+    paddingTop: 8,
+    paddingBottom: 30,
   },
 
   card: {
@@ -233,12 +463,12 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     padding: 14,
     marginBottom: 10,
-    flexDirection: "row"
+    flexDirection: "row",
   },
 
   readCard: {
-    opacity: 0.7,
-    borderColor: "#315044"
+    opacity: 0.72,
+    borderColor: "#315044",
   },
 
   iconBox: {
@@ -248,35 +478,68 @@ const styles = StyleSheet.create({
     backgroundColor: "#102536",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12
+    marginRight: 12,
   },
 
   icon: {
-    fontSize: 23
+    fontSize: 23,
   },
 
   info: {
     flex: 1,
-    minWidth: 0
+    minWidth: 0,
+  },
+
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 5,
   },
 
   title: {
+    flex: 1,
     color: COLORS.white,
     fontSize: 16,
     fontWeight: "800",
-    marginBottom: 5
+  },
+
+  readTitle: {
+    color: "#D2D8DD",
+  },
+
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.gold,
+    marginLeft: 8,
+  },
+
+  readDot: {
+    backgroundColor: "#66747F",
   },
 
   message: {
     color: COLORS.lightGray,
     fontSize: 13,
-    lineHeight: 20
+    lineHeight: 20,
+  },
+
+  readMessage: {
+    color: "#89959E",
   },
 
   date: {
     color: "#7F8C98",
     fontSize: 11,
-    marginTop: 7
+    marginTop: 7,
+  },
+
+  status: {
+    color: "#7F8C98",
+    fontSize: 10,
+    marginTop: 5,
+    fontWeight: "700",
   },
 
   empty: {
@@ -286,17 +549,17 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     padding: 30,
     alignItems: "center",
-    marginTop: 20
+    marginTop: 20,
   },
 
   emptyIcon: {
     fontSize: 42,
-    marginBottom: 12
+    marginBottom: 12,
   },
 
   emptyText: {
     color: COLORS.lightGray,
     fontSize: 15,
-    textAlign: "center"
-  }
+    textAlign: "center",
+  },
 });
