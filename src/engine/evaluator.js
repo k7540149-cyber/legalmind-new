@@ -5,270 +5,419 @@ export const EVALUATION_STATUS = {
 };
 
 function normalize(text) {
-  if (!text || typeof text !== "string") return "";
+  if (
+    text === null ||
+    text === undefined
+  ) {
+    return "";
+  }
 
-  return text
+  return String(text)
     .toLowerCase()
-    .replace(/[،؛,.!?؟:]/g, " ")
+    .replace(/[،؛,.!?؟:(){}[\]"'«»]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function containsAny(text, keywords = []) {
-  const normalized = normalize(text);
+function containsAny(
+  text,
+  keywords = []
+) {
+  const normalized =
+    normalize(text);
 
-  return keywords.some((keyword) =>
-    normalized.includes(normalize(keyword))
+  if (!normalized) {
+    return false;
+  }
+
+  return keywords.some(
+    (keyword) => {
+      const cleanKeyword =
+        normalize(keyword);
+
+      return (
+        cleanKeyword &&
+        normalized.includes(
+          cleanKeyword
+        )
+      );
+    }
   );
 }
 
-function evaluateCriterion(answer, criterion) {
-  const normalized = normalize(answer);
+const CRITERION_KEYWORDS = {
+  loan_amount: [
+    "50000",
+    "۵۰،۰۰۰",
+    "۵۰۰۰۰",
+    "پور",
+    "قرض"
+  ],
 
-  if (!normalized) return false;
+  repayment_date: [
+    "نېټه",
+    "تاکلې نېټه",
+    "ټاکلې نېټه",
+    "موعد",
+    "date",
+    "deadline"
+  ],
 
-  switch (criterion) {
-    case "loan_amount":
-      return containsAny(normalized, [
-        "50000",
-        "۵۰،۰۰۰",
-        "۵۰۰۰۰",
-        "پور",
-        "قرض"
-      ]);
+  written_document: [
+    "سند",
+    "لیکلی",
+    "لیکل شوی",
+    "document",
+    "written"
+  ],
 
-    case "repayment_date":
-      return containsAny(normalized, [
-        "نېټه",
-        "تاکلې نېټه",
-        "ټاکلې نېټه",
-        "موعد",
-        "date",
-        "deadline"
-      ]);
+  witness_statement: [
+    "شاهد",
+    "شهادت",
+    "بیان",
+    "witness",
+    "statement"
+  ],
 
-    case "written_document":
-      return containsAny(normalized, [
-        "سند",
-        "لیکلی",
-        "لیکل شوی",
-        "document",
-        "written"
-      ]);
+  evidence_based_analysis: [
+    "شواهد",
+    "دلیل",
+    "ثبوت",
+    "evidence",
+    "proof"
+  ],
 
-    case "witness_statement":
-      return containsAny(normalized, [
-        "شاهد",
-        "شهادت",
-        "بیان",
-        "witness",
-        "statement"
-      ]);
+  distinguish_civil_and_criminal_issue: [
+    "حقوقي",
+    "مدني",
+    "جزايي",
+    "جرم",
+    "civil",
+    "criminal"
+  ],
 
-    case "evidence_based_analysis":
-      return containsAny(normalized, [
-        "شواهد",
-        "دلیل",
-        "ثبوت",
-        "evidence",
-        "proof"
-      ]);
+  reasoned_conclusion: [
+    "زما نظر",
+    "پایله",
+    "پرېکړه",
+    "نتیجه",
+    "conclusion",
+    "decision"
+  ],
 
-    case "distinguish_civil_and_criminal_issue":
-      return containsAny(normalized, [
-        "حقوقي",
-        "مدني",
-        "جزايي",
-        "جرم",
-        "civil",
-        "criminal"
-      ]);
+  missing_property: [
+    "موبایل",
+    "موبایل ورک",
+    "ورک",
+    "missing",
+    "phone"
+  ],
 
-    case "reasoned_conclusion":
-      return containsAny(normalized, [
-        "زما نظر",
-        "پایله",
-        "پرېکړه",
-        "نتیجه",
-        "conclusion",
-        "decision"
-      ]);
+  uncertain_identity: [
+    "مشخص کس",
+    "هویت",
+    "نه معلوم",
+    "ثبوت نشته",
+    "uncertain",
+    "identity"
+  ],
 
-    case "missing_property":
-      return containsAny(normalized, [
-        "موبایل",
-        "موبایل ورک",
-        "ورک",
-        "missing",
-        "phone"
-      ]);
+  security_record: [
+    "امنیت",
+    "ثبت",
+    "کمره",
+    "امنیتي ثبت",
+    "security",
+    "record"
+  ],
 
-    case "uncertain_identity":
-      return containsAny(normalized, [
-        "مشخص کس",
-        "هویت",
-        "نه معلوم",
-        "ثبوت نشته",
-        "uncertain",
-        "identity"
-      ]);
+  evidence_sufficiency: [
+    "کافي شواهد",
+    "کافي نه دي",
+    "کافي نه دی",
+    "د شواهدو قوت",
+    "sufficient evidence"
+  ],
 
-    case "security_record":
-      return containsAny(normalized, [
-        "امنیت",
-        "ثبت",
-        "کمره",
-        "security",
-        "record"
-      ]);
+  avoid_unproven_accusation: [
+    "بې ثبوته",
+    "بې دلیله",
+    "یوازې شک",
+    "تور",
+    "accusation",
+    "unproven"
+  ],
 
-    case "evidence_sufficiency":
-      return containsAny(normalized, [
-        "کافي شواهد",
-        "کافي نه دي",
-        "کافي نه دی",
-        "د شواهدو قوت",
-        "sufficient evidence"
-      ]);
+  logical_analysis: [
+    "تحلیل",
+    "منطقي",
+    "ارزونه",
+    "analysis",
+    "logical"
+  ],
 
-    case "avoid_unproven_accusation":
-      return containsAny(normalized, [
-        "بې ثبوته",
-        "بې دلیله",
-        "یوازې شک",
-        "تور",
-        "accusation",
-        "unproven"
-      ]);
+  contract_terms: [
+    "تړون",
+    "قرارداد",
+    "شرایط",
+    "contract",
+    "terms"
+  ],
 
-    case "logical_analysis":
-      return containsAny(normalized, [
-        "تحلیل",
-        "منطقي",
-        "ارزونه",
-        "analysis",
-        "logical"
-      ]);
+  completion_deadline: [
+    "مهلت",
+    "موده",
+    "نېټه",
+    "وخت",
+    "deadline",
+    "period"
+  ],
 
-    case "contract_terms":
-      return containsAny(normalized, [
-        "تړون",
-        "قرارداد",
-        "شرایط",
-        "contract",
-        "terms"
-      ]);
+  required_information: [
+    "معلومات",
+    "اړین معلومات",
+    "لازمي معلومات",
+    "information"
+  ],
 
-    case "completion_deadline":
-      return containsAny(normalized, [
-        "مهلت",
-        "موده",
-        "نېټه",
-        "وخت",
-        "deadline",
-        "period"
-      ]);
+  communication_record: [
+    "اړیکې",
+    "خبرې",
+    "پیغام",
+    "ثبت",
+    "communication"
+  ],
 
-    case "required_information":
-      return containsAny(normalized, [
-        "معلومات",
-        "اړین معلومات",
-        "لازمي معلومات",
-        "information"
-      ]);
+  consider_both_sides: [
+    "دواړه خواوې",
+    "دواړو لوریو",
+    "دواړه لوري",
+    "both sides"
+  ],
 
-    case "communication_record":
-      return containsAny(normalized, [
-        "اړیکې",
-        "خبرې",
-        "پیغام",
-        "ثبت",
-        "communication"
-      ]);
+  causation_analysis: [
+    "علت",
+    "لامل",
+    "د ځنډ علت",
+    "سبب",
+    "causation",
+    "cause"
+  ],
 
-    case "consider_both_sides":
-      return containsAny(normalized, [
-        "دواړه خواوې",
-        "دواړو لوریو",
-        "دواړه لوري",
-        "both sides"
-      ]);
+  evidence_based_defense: [
+    "دفاع",
+    "شواهد",
+    "دفاعي دلیل",
+    "evidence",
+    "defense"
+  ]
+};
 
-    case "causation_analysis":
-      return containsAny(normalized, [
-        "علت",
-        "لامل",
-        "د ځنډ علت",
-        "سبب",
-        "causation",
-        "cause"
-      ]);
+function evaluateCriterion(
+  answer,
+  criterion
+) {
+  const keywords =
+    CRITERION_KEYWORDS[
+      criterion
+    ];
 
-    case "evidence_based_defense":
-      return containsAny(normalized, [
-        "دفاع",
-        "شواهد",
-        "دفاعي دلیل",
-        "evidence",
-        "defense"
-      ]);
-
-    default:
-      return false;
+  if (!keywords) {
+    return false;
   }
+
+  return containsAny(
+    answer,
+    keywords
+  );
 }
 
-export function evaluateCaseAnswer(caseData, answer) {
-  if (!caseData || !answer || !answer.trim()) {
+function cleanCriteria(criteria) {
+  if (!Array.isArray(criteria)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      criteria
+        .map((item) =>
+          String(item || "").trim()
+        )
+        .filter(Boolean)
+    )
+  ];
+}
+
+function getRequiredCriteria(
+  caseData
+) {
+  const requiredFacts =
+    cleanCriteria(
+      caseData?.evaluation
+        ?.requiredFacts
+    );
+
+  const requiredReasoning =
+    cleanCriteria(
+      caseData?.evaluation
+        ?.requiredReasoning
+    );
+
+  return [
+    ...new Set([
+      ...requiredFacts,
+      ...requiredReasoning
+    ])
+  ];
+}
+
+function getMinimumCriteria(
+  caseData,
+  totalCriteria
+) {
+  const configured =
+    Number(
+      caseData?.evaluation
+        ?.minimumCriteria
+    );
+
+  if (
+    Number.isFinite(configured) &&
+    configured > 0
+  ) {
+    return Math.min(
+      Math.floor(configured),
+      totalCriteria
+    );
+  }
+
+  return Math.max(
+    1,
+    Math.ceil(
+      totalCriteria / 2
+    )
+  );
+}
+
+export function evaluateCaseAnswer(
+  caseData,
+  answer
+) {
+  if (!caseData) {
     return {
-      status: EVALUATION_STATUS.INCOMPLETE,
+      status:
+        EVALUATION_STATUS.INCOMPLETE,
       matchedCriteria: [],
-      missingCriteria: caseData?.evaluation?.requiredFacts || [],
+      missingCriteria: [],
       score: 0,
+      totalCriteria: 0,
+      minimumCriteria: 0,
       completed: false
     };
   }
 
-  const requiredCriteria = [
-    ...(caseData.evaluation?.requiredFacts || []),
-    ...(caseData.evaluation?.requiredReasoning || [])
-  ];
+  const cleanAnswer =
+    typeof answer === "string"
+      ? answer.trim()
+      : "";
 
-  const matchedCriteria = requiredCriteria.filter((criterion) =>
-    evaluateCriterion(answer, criterion)
-  );
+  const requiredCriteria =
+    getRequiredCriteria(
+      caseData
+    );
 
-  const missingCriteria = requiredCriteria.filter(
-    (criterion) => !matchedCriteria.includes(criterion)
-  );
+  if (!cleanAnswer) {
+    return {
+      status:
+        EVALUATION_STATUS.INCOMPLETE,
+      matchedCriteria: [],
+      missingCriteria:
+        requiredCriteria,
+      score: 0,
+      totalCriteria:
+        requiredCriteria.length,
+      minimumCriteria:
+        getMinimumCriteria(
+          caseData,
+          requiredCriteria.length
+        ),
+      completed: false
+    };
+  }
+
+  /*
+   * Each criterion is checked
+   * independently.
+   */
+  const matchedCriteria =
+    requiredCriteria.filter(
+      (criterion) =>
+        evaluateCriterion(
+          cleanAnswer,
+          criterion
+        )
+    );
+
+  const missingCriteria =
+    requiredCriteria.filter(
+      (criterion) =>
+        !matchedCriteria.includes(
+          criterion
+        )
+    );
 
   const minimumCriteria =
-    caseData.evaluation?.minimumCriteria ||
-    Math.max(1, Math.ceil(requiredCriteria.length / 2));
+    getMinimumCriteria(
+      caseData,
+      requiredCriteria.length
+    );
 
-  const completed = matchedCriteria.length >= minimumCriteria;
+  const completed =
+    requiredCriteria.length === 0
+      ? false
+      : matchedCriteria.length >=
+        minimumCriteria;
+
+  let status =
+    EVALUATION_STATUS.NEEDS_REVIEW;
+
+  if (completed) {
+    status =
+      EVALUATION_STATUS.CORRECT;
+  }
 
   return {
-    status: completed
-      ? EVALUATION_STATUS.CORRECT
-      : EVALUATION_STATUS.NEEDS_REVIEW,
+    status,
     matchedCriteria,
     missingCriteria,
-    score: matchedCriteria.length,
-    totalCriteria: requiredCriteria.length,
+    score:
+      matchedCriteria.length,
+    totalCriteria:
+      requiredCriteria.length,
+    minimumCriteria,
     completed
   };
 }
 
-export function getFeedback(caseData, evaluationResult, attempt) {
-  if (!caseData || !evaluationResult) {
+export function getFeedback(
+  caseData,
+  evaluationResult,
+  attempt = 1
+) {
+  if (
+    !caseData ||
+    !evaluationResult
+  ) {
     return {
       type: "hint",
-      message: "خپل نظر ولیکه او بیا یې ثبت کړه."
+      message:
+        "خپل نظر ولیکه او بیا یې ثبت کړه."
     };
   }
 
-  if (evaluationResult.completed) {
+  if (
+    evaluationResult.completed
+  ) {
     return {
       type: "success",
       message:
@@ -276,41 +425,140 @@ export function getFeedback(caseData, evaluationResult, attempt) {
     };
   }
 
-  const hints = caseData.hints || {};
+  const hints =
+    caseData.hints || {};
 
-  if (attempt <= 1 && hints.first) {
+  const safeAttempt =
+    Math.max(
+      1,
+      Math.floor(
+        Number(attempt) || 1
+      )
+    );
+
+  if (
+    safeAttempt === 1 &&
+    hints.first
+  ) {
     return {
       type: "hint",
-      message: hints.first.pashto
+      message:
+        hints.first.pashto ||
+        hints.first.dari ||
+        hints.first.english ||
+        "مهم شواهد او قانوني موضوع بیا وارزوه."
     };
   }
 
-  if (attempt === 2 && hints.second) {
+  if (
+    safeAttempt === 2 &&
+    hints.second
+  ) {
     return {
       type: "hint",
-      message: hints.second.pashto
+      message:
+        hints.second.pashto ||
+        hints.second.dari ||
+        hints.second.english ||
+        "د قضیې مهمو ټکو ته لا زیات پام وکړه."
     };
   }
 
-  if (attempt >= 3 && hints.third) {
+  if (
+    safeAttempt >= 3 &&
+    hints.third
+  ) {
     return {
       type: "guidance",
-      message: hints.third.pashto
+      message:
+        hints.third.pashto ||
+        hints.third.dari ||
+        hints.third.english ||
+        "شواهد، قانوني موضوع او خپل استدلال په منظم ډول بیا وارزوه."
+    };
+  }
+
+  const missingCount =
+    Array.isArray(
+      evaluationResult.missingCriteria
+    )
+      ? evaluationResult
+          .missingCriteria.length
+      : 0;
+
+  if (missingCount > 0) {
+    return {
+      type:
+        safeAttempt >= 3
+          ? "guidance"
+          : "hint",
+      message:
+        safeAttempt >= 3
+          ? "د قضیې شواهد، قانوني موضوع، د دواړو خواوو دریځ او خپل وروستی استدلال په منظم ډول سره وتړه."
+          : "شواهد، قانوني موضوع او خپل استدلال بیا وارزوه."
     };
   }
 
   return {
     type: "hint",
-    message: "شواهد، قانوني موضوع او خپل استدلال بیا وارزوه."
+    message:
+      "خپل قانوني استدلال لا واضح او د شواهدو پر بنسټ ولیکه."
   };
 }
 
-export function canCompleteCase(caseData, answer, attempt = 1) {
-  const result = evaluateCaseAnswer(caseData, answer);
+export function canCompleteCase(
+  caseData,
+  answer,
+  attempt = 1
+) {
+  const result =
+    evaluateCaseAnswer(
+      caseData,
+      answer
+    );
+
+  const safeAttempt =
+    Math.max(
+      1,
+      Math.floor(
+        Number(attempt) || 1
+      )
+    );
 
   return {
     ...result,
-    attempt,
-    feedback: getFeedback(caseData, result, attempt)
+    attempt: safeAttempt,
+    feedback:
+      getFeedback(
+        caseData,
+        result,
+        safeAttempt
+      )
   };
+}
+
+export function getMissingCriteria(
+  caseData,
+  answer
+) {
+  const result =
+    evaluateCaseAnswer(
+      caseData,
+      answer
+    );
+
+  return result.missingCriteria;
+}
+
+export function getMatchedCriteria(
+  caseData,
+  answer
+) {
+  const result =
+    evaluateCaseAnswer(
+      caseData,
+      answer
+    );
+
+  return result.matchedCriteria;
 }
