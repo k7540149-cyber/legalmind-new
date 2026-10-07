@@ -1,20 +1,19 @@
 import React from "react";
 import {
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
-import {
-  COLORS
-} from "../constants/app";
+import { COLORS } from "../constants/app";
 
 export default function HomeScreen({
-  profile,
+  profile = null,
   language = "pashto",
-  onNavigate
+  onNavigate,
 }) {
   const isPashto = language === "pashto";
   const isDari = language === "dari";
@@ -31,6 +30,12 @@ export default function HomeScreen({
       : isDari
       ? "مورد علاقه‌ها"
       : "Favorites",
+
+    notifications: isPashto
+      ? "خبرتیاوې"
+      : isDari
+      ? "اعلان‌ها"
+      : "Notifications",
 
     terminology: isPashto
       ? "حقوقي ترمینالوژي"
@@ -54,26 +59,32 @@ export default function HomeScreen({
       ? "د مدافع وکیل رول په قضیه کې"
       : isDari
       ? "نقش وکیل مدافع در قضیه"
-      : "Defense Attorney Role in a Case"
+      : "Defense Attorney Role in a Case",
+
+    welcome: isPashto
+      ? "ښه راغلاست"
+      : isDari
+      ? "خوش آمدید"
+      : "Welcome",
   };
 
-  function navigate(screen, params = {}) {
-    if (typeof onNavigate === "function") {
-      onNavigate(screen, params);
-    }
+  function navigate(destination, params = {}) {
+    if (typeof onNavigate !== "function") return;
+
+    onNavigate(destination, params);
   }
+
+  const displayName =
+    profile?.name?.trim() || "";
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-
         <View style={styles.topBar}>
           <TouchableOpacity
             activeOpacity={0.8}
             style={styles.topButton}
-            onPress={() =>
-              navigate("Profile")
-            }
+            onPress={() => navigate("profile")}
           >
             <Text style={styles.topIcon}>
               👤
@@ -84,91 +95,111 @@ export default function HomeScreen({
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            activeOpacity={0.8}
-            style={styles.topButton}
-            onPress={() =>
-              navigate("Favorites")
-            }
-          >
-            <Text style={styles.topIcon}>
-              ⭐
+          <View style={styles.topRight}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.topButton}
+              onPress={() =>
+                navigate("notifications")
+              }
+            >
+              <Text style={styles.topIcon}>
+                🔔
+              </Text>
+
+              <Text style={styles.topText}>
+                {text.notifications}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.topButton}
+              onPress={() =>
+                navigate("favorites")
+              }
+            >
+              <Text style={styles.topIcon}>
+                ⭐
+              </Text>
+
+              <Text style={styles.topText}>
+                {text.favorites}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+        >
+          <View style={styles.hero}>
+            <Text style={styles.logo}>
+              ⚖️
             </Text>
 
-            <Text style={styles.topText}>
-              {text.favorites}
+            <Text style={styles.title}>
+              LegalMind
             </Text>
-          </TouchableOpacity>
-        </View>
 
-        <View style={styles.hero}>
-          <Text style={styles.logo}>
-            ⚖️
-          </Text>
-
-          <Text style={styles.title}>
-            LegalMind
-          </Text>
-
-          <Text style={styles.tagline}>
-            Learn • Analyze • Decide
-          </Text>
-
-          {profile?.name ? (
-            <Text style={styles.welcome}>
-              {profile.name}، ښه راغلاست
+            <Text style={styles.tagline}>
+              Learn • Analyze • Decide
             </Text>
-          ) : null}
-        </View>
 
-        <View style={styles.menuContainer}>
+            {displayName ? (
+              <Text style={styles.welcome}>
+                {displayName}، {text.welcome}
+              </Text>
+            ) : null}
+          </View>
 
-          <MenuCard
-            icon="📚"
-            title={text.terminology}
-            onPress={() =>
-              navigate("Terminology")
-            }
-          />
+          <View style={styles.menuContainer}>
+            <MenuCard
+              icon="📚"
+              title={text.terminology}
+              onPress={() =>
+                navigate("terminology")
+              }
+            />
 
-          <MenuCard
-            icon="👨‍⚖️"
-            title={text.judge}
-            onPress={() =>
-              navigate("RoleCases", {
-                role: "judge"
-              })
-            }
-          />
+            <MenuCard
+              icon="👨‍⚖️"
+              title={text.judge}
+              onPress={() =>
+                navigate("judge", {
+                  role: "judge",
+                })
+              }
+            />
 
-          <MenuCard
-            icon="⚖️"
-            title={text.prosecutor}
-            onPress={() =>
-              navigate("RoleCases", {
-                role: "prosecutor"
-              })
-            }
-          />
+            <MenuCard
+              icon="⚖️"
+              title={text.prosecutor}
+              onPress={() =>
+                navigate("prosecutor", {
+                  role: "prosecutor",
+                })
+              }
+            />
 
-          <MenuCard
-            icon="👨‍💼"
-            title={text.defense}
-            onPress={() =>
-              navigate("RoleCases", {
-                role: "defense"
-              })
-            }
-          />
+            <MenuCard
+              icon="👨‍💼"
+              title={text.defense}
+              onPress={() =>
+                navigate("defense", {
+                  role: "defense",
+                })
+              }
+            />
+          </View>
 
-        </View>
-
-        <View style={styles.creatorArea}>
-          <Text style={styles.creator}>
-            Designed by: Omid Momand
-          </Text>
-        </View>
-
+          <View style={styles.creatorArea}>
+            <Text style={styles.creator}>
+              Designed by: Omid Momand
+            </Text>
+          </View>
+        </ScrollView>
       </View>
     </SafeAreaView>
   );
@@ -177,7 +208,7 @@ export default function HomeScreen({
 function MenuCard({
   icon,
   title,
-  onPress
+  onPress,
 }) {
   return (
     <TouchableOpacity
@@ -190,7 +221,10 @@ function MenuCard({
           {icon}
         </Text>
 
-        <Text style={styles.menuTitle}>
+        <Text
+          style={styles.menuTitle}
+          numberOfLines={2}
+        >
           {title}
         </Text>
       </View>
@@ -205,75 +239,86 @@ function MenuCard({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: COLORS.navy
+    backgroundColor: COLORS.navy,
   },
 
   container: {
     flex: 1,
     paddingHorizontal: 18,
     paddingTop: 12,
-    paddingBottom: 10
+  },
+
+  content: {
+    flexGrow: 1,
+    paddingBottom: 15,
   },
 
   topBar: {
+    minHeight: 50,
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center"
+  },
+
+  topRight: {
+    flexDirection: "row",
+    alignItems: "center",
   },
 
   topButton: {
     minHeight: 44,
-    paddingHorizontal: 10,
+    paddingHorizontal: 7,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6
+    marginLeft: 4,
   },
 
   topIcon: {
-    fontSize: 21
+    fontSize: 21,
   },
 
   topText: {
     color: COLORS.white,
-    fontSize: 14,
-    fontWeight: "700"
+    fontSize: 12,
+    fontWeight: "800",
+    marginLeft: 5,
   },
 
   hero: {
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 22,
-    paddingBottom: 28
+    paddingTop: 25,
+    paddingBottom: 30,
   },
 
   logo: {
     fontSize: 56,
-    marginBottom: 8
+    marginBottom: 8,
   },
 
   title: {
     color: COLORS.white,
     fontSize: 34,
     fontWeight: "900",
-    letterSpacing: 0.5
+    letterSpacing: 0.5,
   },
 
   tagline: {
     color: COLORS.gold,
     fontSize: 15,
     fontWeight: "700",
-    marginTop: 6
+    marginTop: 6,
   },
 
   welcome: {
     color: COLORS.lightGray,
     fontSize: 14,
-    marginTop: 16
+    marginTop: 16,
+    textAlign: "center",
   },
 
   menuContainer: {
     width: "100%",
-    gap: 12
   },
 
   menuCard: {
@@ -284,48 +329,51 @@ const styles = StyleSheet.create({
     borderColor: COLORS.gold,
     borderRadius: 15,
     paddingHorizontal: 16,
+    marginBottom: 12,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between"
+    justifyContent: "space-between",
   },
 
   menuLeft: {
     flex: 1,
     minWidth: 0,
     flexDirection: "row",
-    alignItems: "center"
+    alignItems: "center",
   },
 
   menuIcon: {
     fontSize: 27,
     width: 42,
-    textAlign: "center"
+    textAlign: "center",
   },
 
   menuTitle: {
     flex: 1,
     color: COLORS.white,
     fontSize: 16,
-    fontWeight: "700",
-    marginLeft: 8
+    fontWeight: "800",
+    lineHeight: 22,
+    marginLeft: 8,
   },
 
   arrow: {
     color: COLORS.gold,
     fontSize: 34,
     fontWeight: "300",
-    marginLeft: 8
+    marginLeft: 8,
   },
 
   creatorArea: {
     flex: 1,
+    minHeight: 60,
     justifyContent: "flex-end",
     alignItems: "center",
-    paddingBottom: 8
+    paddingBottom: 8,
   },
 
   creator: {
     color: "#7F8C98",
-    fontSize: 11
-  }
+    fontSize: 11,
+  },
 });
