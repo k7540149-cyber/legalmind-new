@@ -5,230 +5,345 @@ import {
 } from "../storage/storage";
 
 import {
-  DEFAULT_CASE_STATE
-} from "../data/appDefaults";
-
-import {
   getCaseById,
   getCasesByRole
 } from "../data/cases";
 
 import {
   getRoleProgress,
-  isCaseUnlocked,
-  isCaseCompleted,
-  completeCase,
-  unlockCase
+  completeCase as completeCaseProgress,
+  unlockCase as unlockProgressCase
 } from "../engine/caseProgress";
 
-export async function getCaseState() {
-  const saved = await getData(
+import { uniqueById } from "../utils/uniqueData";
+
+const DEFAULT_CASE_STATE = {
+  activeCaseId: null,
+  role: null,
+  attempt: 0,
+  hintsUsed: 0,
+  startedAt: null,
+  completed: false
+};
+
+function cleanCaseState(state = {}) {
+  return {
+    ...DEFAULT_CASE_STATE,
+    ...state,
+    attempt: Math.max(0, Number(state?.attempt) || 0),
+    hintsUsed: Math.max(
+      0,
+      Number(state?.hintsUsed) || 0
+    )
+  };
+}
+
+async function saveCaseState(state) {
+  const cleanState = cleanCaseState(state);
+
+  await saveData(
+    STORAGE_KEYS.CASES,
+    cleanState
+  );
+
+  return cleanState;
+}
+
+export async function getActiveCase() {
+  const state = await getData(
     STORAGE_KEYS.CASES,
     DEFAULT_CASE_STATE
   );
 
-  return {
-    ...DEFAULT_CASE_STATE,
-    ...(saved || {})
-  };
+  const cleanState = cleanCaseState(state);
+
+  if (!cleanState.activeCaseId) {
+    return null;
+  }
+
+  return getCaseById(cleanState.activeCaseId) || null;
 }
 
-export async function saveCaseState(state) {
-  return saveData(
+export async function getCaseState() {
+  const state = await getData(
     STORAGE_KEYS.CASES,
-    {
-      ...DEFAULT_CASE_STATE,
-      ...(state || {})
-    }
+    DEFAULT_CASE_STATE
   );
+
+  return cleanCaseState(state);
 }
 
-export async function startCase(role, caseId) {
+export async function startCase(caseId, role) {
   const caseData = getCaseById(caseId);
 
   if (!caseData) {
     return {
       success: false,
-      error: "قضیه پیدا نه شوه."
+      reason: "case_not_found"
     };
   }
 
-  const unlocked = await isCaseUnlocked(
-    role,
-    caseId
+  const caseRole = role || caseData.role;
+
+  const canOpen = await canOpenCase(
+    caseId,
+    caseRole
   );
 
-  if (!unlocked) {
+  if (!canOpen) {
     return {
       success: false,
-      error: "دا قضیه لا تر اوسه نه ده پرانیستل شوې."
+      reason: "case_locked"
     };
   }
 
   const state = {
+    ...DEFAULT_CASE_STATE,
     activeCaseId: caseId,
-    role,
-    attempts: 0,
+    role: caseRole,
+    attempt: 0,
     hintsUsed: 0,
-    submitted: false,
+    startedAt: new Date().toISOString(),
     completed: false
   };
 
-  await saveCaseState(state);
+  const saved = await saveCaseState(state);
 
   return {
     success: true,
     caseData,
-    state
+    state: saved
   };
 }
 
-export async function getActiveCase() {
-  const state = await getCaseState();
-
-  if (!state.activeCaseId) {
-    return {
-      state,
-      caseData: null
-    };
-  }
-
-  return {
-    state,
-    caseData: getCaseById(
-      state.activeCaseId
-    )
-  };
-}
-
-export async function recordAttempt() {
+export async function addAttempt() {
   const state = await getCaseState();
 
   const updated = {
     ...state,
-    attempts: (state.attempts || 0) + 1,
-    submitted: true
+    attempt: state.attempt + 1
   };
 
-  await saveCaseState(updated);
-
-  return updated;
+  return saveCaseState(updated);
 }
 
-export async function recordHint() {
+export async function addHint() {
   const state = await getCaseState();
 
   const updated = {
     ...state,
-    hintsUsed: (state.hintsUsed || 0) + 1
+    hintsUsed: state.hintsUsed + 1
   };
 
-  await saveCaseState(updated);
-
-  return updated;
+  return saveCaseState(updated);
 }
 
 export async function finishCase({
-  role,
   caseId,
-  nextCaseId = null,
-  attempt = 1,
-  hintsUsed = 0
+  role,
+  completed = false
 }) {
-  const result = await completeCase({
+  if (!caseId || !role) {
+    return {
+      success: false,
+      reason: "missing_case_or_role"
+    };
+  }
+
+  const state = await getCaseState();
+
+  const attempt = Math.max(
+    1,
+    state.attempt || 1
+  );
+
+  const hintsUsed = Math.max(
+    0,
+    state.hintsUsed || 0
+  );
+
+  if (!completed) {
+    return {
+      success: false,
+      completed: false,
+      score: 0,
+      attempt,
+      hintsUsed
+    };
+  }
+
+  const result = await completeCaseProgress({
     role,
     caseId,
-    nextCaseId,
     attempt,
-    hintsUsed
+    hintsUsed,
+    completed: true
   });
 
   await saveCaseState({
-    activeCaseId: null,
-    role: null,
-    attempts: 0,
-    hintsUsed: 0,
-    submitted: false,
-    completed: false
+    ...DEFAULT_CASE_STATE,
+    completed: true
   });
 
-  return result;
+  return {
+    success: true,
+    completed: true,
+    ...result
+  };
 }
 
 export async function getNextCase(role) {
-  const cases = getCasesByRole(role);
+  if (!role) {
+    return null;
+  }
+
+  const cases = uniqueById(
+    getCasesByRole(role)
+  );
+
   const progress = await getRoleProgress(role);
 
-  const completed = progress.completedCases || [];
-  const unlocked = progress.unlockedCases || [];
+  const completedCases = Array.isArray(
+    progress?.completedCases
+  )
+    ? progress.completedCases
+    : [];
+
+  const unlockedCases = Array.isArray(
+    progress?.unlockedCases
+  )
+    ? progress.unlockedCases
+    : [];
 
   return (
     cases.find(
       (item) =>
-        unlocked.includes(item.id) &&
-        !completed.includes(item.id)
+        unlockedCases.includes(item.id) &&
+        !completedCases.includes(item.id)
     ) || null
   );
 }
 
 export async function getRoleCases(role) {
-  const cases = getCasesByRole(role);
+  if (!role) {
+    return [];
+  }
+
+  const cases = uniqueById(
+    getCasesByRole(role)
+  );
+
   const progress = await getRoleProgress(role);
 
-  return cases.map((item) => ({
-    ...item,
-    unlocked: progress.unlockedCases.includes(
-      item.id
-    ),
-    completed: progress.completedCases.includes(
-      item.id
-    )
+  const completedCases = Array.isArray(
+    progress?.completedCases
+  )
+    ? progress.completedCases
+    : [];
+
+  const unlockedCases = Array.isArray(
+    progress?.unlockedCases
+  )
+    ? progress.unlockedCases
+    : [];
+
+  return cases.map((caseData) => ({
+    ...caseData,
+    unlocked:
+      unlockedCases.includes(caseData.id),
+    completed:
+      completedCases.includes(caseData.id)
   }));
 }
 
-export async function unlockNextCase(
-  role,
-  nextCaseId
-) {
-  if (!nextCaseId) {
-    return getRoleProgress(role);
+export async function unlockNextCase(role) {
+  if (!role) {
+    return {
+      success: false,
+      reason: "missing_role"
+    };
   }
 
-  return unlockCase(
+  const cases = uniqueById(
+    getCasesByRole(role)
+  );
+
+  const progress = await getRoleProgress(role);
+
+  const completedCases = Array.isArray(
+    progress?.completedCases
+  )
+    ? progress.completedCases
+    : [];
+
+  const unlockedCases = Array.isArray(
+    progress?.unlockedCases
+  )
+    ? progress.unlockedCases
+    : [];
+
+  const nextCase = cases.find(
+    (item) =>
+      !completedCases.includes(item.id) &&
+      !unlockedCases.includes(item.id)
+  );
+
+  if (!nextCase) {
+    return {
+      success: false,
+      reason: "no_next_case",
+      caseData: null
+    };
+  }
+
+  await unlockProgressCase(
     role,
-    nextCaseId
-  );
-}
-
-export async function resetCaseState() {
-  await saveCaseState(
-    DEFAULT_CASE_STATE
+    nextCase.id
   );
 
-  return DEFAULT_CASE_STATE;
+  return {
+    success: true,
+    caseData: nextCase
+  };
 }
 
 export async function canOpenCase(
-  role,
-  caseId
+  caseId,
+  role
 ) {
+  if (!caseId || !role) {
+    return false;
+  }
+
   const caseData = getCaseById(caseId);
 
   if (!caseData) {
     return false;
   }
 
-  const unlocked =
-    await isCaseUnlocked(
-      role,
-      caseId
-    );
+  const progress = await getRoleProgress(role);
 
-  const completed =
-    await isCaseCompleted(
-      role,
-      caseId
-    );
+  const unlockedCases = Array.isArray(
+    progress?.unlockedCases
+  )
+    ? progress.unlockedCases
+    : [];
 
-  return unlocked && !completed;
+  const completedCases = Array.isArray(
+    progress?.completedCases
+  )
+    ? progress.completedCases
+    : [];
+
+  if (completedCases.includes(caseId)) {
+    return true;
+  }
+
+  return unlockedCases.includes(caseId);
+}
+
+export async function resetCaseState() {
+  return saveCaseState(
+    DEFAULT_CASE_STATE
+  );
 }
