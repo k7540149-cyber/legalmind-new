@@ -3,11 +3,13 @@ export const CASES = [
     id: "case-judge-001",
     role: "judge",
     difficulty: 1,
+
     title: {
       pashto: "د پور د بېرته ورکولو قضیه",
       dari: "قضیه بازپرداخت قرض",
       english: "The Loan Repayment Case"
     },
+
     story: {
       pashto:
         "احمد ادعا کوي چې بلال ترې ۵۰،۰۰۰ افغانۍ پور اخیستی و او د ټاکلې نېټې له تېرېدو وروسته یې پیسې بېرته نه دي ورکړې. بلال مني چې پیسې یې اخیستې وې، خو وايي چې د بېرته ورکولو لپاره یې لا اضافي وخت غوښتل.",
@@ -16,6 +18,7 @@ export const CASES = [
       english:
         "Ahmad claims that Bilal borrowed 50,000 Afghanis and failed to repay the amount after the agreed date. Bilal admits receiving the money but says he needed additional time to repay it."
     },
+
     people: [
       {
         id: "person-001",
@@ -60,6 +63,7 @@ export const CASES = [
         }
       }
     ],
+
     evidence: [
       {
         id: "evidence-001",
@@ -96,6 +100,7 @@ export const CASES = [
         }
       }
     ],
+
     legalIssue: {
       pashto:
         "ایا د موجودو معلوماتو او شواهدو پر بنسټ د پور د بېرته ورکولو ادعا ثابتېدای شي؟",
@@ -184,11 +189,13 @@ export const CASES = [
     id: "case-prosecutor-001",
     role: "prosecutor",
     difficulty: 1,
+
     title: {
       pashto: "د ورک شوي موبایل قضیه",
       dari: "قضیه موبایل گمشده",
       english: "The Missing Phone Case"
     },
+
     story: {
       pashto:
         "فرید وايي چې موبایل یې په یوه دفتر کې ورک شوی. نوموړي ادعا کړې چې وروستی ځل یې موبایل د دفتر پر مېز ایښی و. د دفتر د امنیتي ثبت له مخې څو کسان په هغه وخت کې دفتر ته داخل شوي وو.",
@@ -197,6 +204,7 @@ export const CASES = [
       english:
         "Farid reports that his phone went missing in an office. He says he last placed it on a desk. Security records show that several people entered the office around that time."
     },
+
     people: [
       {
         id: "person-003",
@@ -241,6 +249,7 @@ export const CASES = [
         }
       }
     ],
+
     evidence: [
       {
         id: "evidence-003",
@@ -272,9 +281,12 @@ export const CASES = [
 
     tasks: {
       judge: {
-        pashto: "د شواهدو بې طرفانه ارزونه وکړه.",
-        dari: "شواهد را به صورت بی‌طرفانه ارزیابی کن.",
-        english: "Evaluate the evidence impartially."
+        pashto:
+          "د شواهدو بې طرفانه ارزونه وکړه.",
+        dari:
+          "شواهد را به صورت بی‌طرفانه ارزیابی کن.",
+        english:
+          "Evaluate the evidence impartially."
       },
       prosecutor: {
         pashto:
@@ -285,9 +297,12 @@ export const CASES = [
           "Analyze the available evidence and identify what elements would need to be established for prosecution."
       },
       defense: {
-        pashto: "د هر احتمالي تور د کمزورو ټکو تحلیل وکړه.",
-        dari: "نقاط ضعیف هر ادعای احتمالی را تحلیل کن.",
-        english: "Analyze the weaknesses of any potential allegation."
+        pashto:
+          "د هر احتمالي تور د کمزورو ټکو تحلیل وکړه.",
+        dari:
+          "نقاط ضعیف هر ادعای احتمالی را تحلیل کن.",
+        english:
+          "Analyze the weaknesses of any potential allegation."
       }
     },
 
@@ -342,11 +357,13 @@ export const CASES = [
     id: "case-defense-001",
     role: "defense",
     difficulty: 1,
+
     title: {
       pashto: "د تړون د اختلاف قضیه",
       dari: "قضیه اختلاف قراردادی",
       english: "The Contract Dispute Case"
     },
+
     story: {
       pashto:
         "حامد ادعا کوي چې ناصر د یوه لیکلي تړون له مخې باید یو کار بشپړ کړی وای، خو کار په ټاکلې موده کې بشپړ نه شو. ناصر وايي چې د کار د ځنډ علت هغه معلومات وو چې حامد باید مخکې ورکړي وای.",
@@ -355,6 +372,7 @@ export const CASES = [
       english:
         "Hamed claims that Nasir was required by a written contract to complete work within a specified period, but the work was not completed on time. Nasir says the delay resulted from information Hamed was required to provide."
     },
+
     people: [
       {
         id: "person-005",
@@ -399,6 +417,7 @@ export const CASES = [
         }
       }
     ],
+
     evidence: [
       {
         id: "evidence-004",
@@ -447,14 +466,20 @@ export const CASES = [
 
     tasks: {
       judge: {
-        pashto: "د دواړو لوریو شواهد او ادعاوې وارزوه.",
-        dari: "شواهد و ادعاهای هر دو طرف را ارزیابی کن.",
-        english: "Evaluate both parties' evidence and claims."
+        pashto:
+          "د دواړو لوریو شواهد او ادعاوې وارزوه.",
+        dari:
+          "شواهد و ادعاهای هر دو طرف را ارزیابی کن.",
+        english:
+          "Evaluate both parties' evidence and claims."
       },
       prosecutor: {
-        pashto: "د موضوع حقوقي ماهیت تحلیل کړه.",
-        dari: "ماهیت حقوقی موضوع را تحلیل کن.",
-        english: "Analyze the legal nature of the matter."
+        pashto:
+          "د موضوع حقوقي ماهیت تحلیل کړه.",
+        dari:
+          "ماهیت حقوقی موضوع را تحلیل کن.",
+        english:
+          "Analyze the legal nature of the matter."
       },
       defense: {
         pashto:
@@ -516,13 +541,124 @@ export const CASES = [
 ];
 
 export function getCaseById(caseId) {
-  return CASES.find((item) => item.id === caseId) || null;
+  const id = String(caseId || "").trim();
+
+  if (!id) {
+    return null;
+  }
+
+  return (
+    CASES.find(
+      (item) =>
+        String(item.id) === id
+    ) || null
+  );
 }
 
 export function getCasesByRole(role) {
-  return CASES.filter((item) => item.role === role);
+  const cleanRole =
+    String(role || "").trim();
+
+  if (!cleanRole) {
+    return [];
+  }
+
+  return CASES.filter(
+    (item) =>
+      item.role === cleanRole
+  );
 }
 
-export function getCasesByDifficulty(difficulty) {
-  return CASES.filter((item) => item.difficulty === difficulty);
+export function getCasesByDifficulty(
+  difficulty
+) {
+  const cleanDifficulty =
+    Number(difficulty);
+
+  if (!Number.isFinite(cleanDifficulty)) {
+    return [];
+  }
+
+  return CASES.filter(
+    (item) =>
+      Number(item.difficulty) ===
+      cleanDifficulty
+  );
+}
+
+export function getCaseTask(
+  caseData,
+  role
+) {
+  if (!caseData) {
+    return null;
+  }
+
+  const cleanRole =
+    String(role || "").trim();
+
+  return (
+    caseData.tasks?.[cleanRole] ||
+    null
+  );
+}
+
+export function getCaseTitle(
+  caseData,
+  language = "pashto"
+) {
+  return (
+    caseData?.title?.[language] ||
+    caseData?.title?.pashto ||
+    caseData?.title?.dari ||
+    caseData?.title?.english ||
+    ""
+  );
+}
+
+export function getCaseStory(
+  caseData,
+  language = "pashto"
+) {
+  return (
+    caseData?.story?.[language] ||
+    caseData?.story?.pashto ||
+    caseData?.story?.dari ||
+    caseData?.story?.english ||
+    ""
+  );
+}
+
+export function getCaseLegalIssue(
+  caseData,
+  language = "pashto"
+) {
+  return (
+    caseData?.legalIssue?.[language] ||
+    caseData?.legalIssue?.pashto ||
+    caseData?.legalIssue?.dari ||
+    caseData?.legalIssue?.english ||
+    ""
+  );
+}
+
+export function getCaseCompletionRules(
+  caseData
+) {
+  return {
+    minimumCriteria:
+      Number(
+        caseData?.completion
+          ?.minimumCriteria
+      ) ||
+      Number(
+        caseData?.evaluation
+          ?.minimumCriteria
+      ) ||
+      1,
+
+    requiresFinalOpinion:
+      caseData?.completion
+        ?.requiresFinalOpinion !== false
+  };
 }
