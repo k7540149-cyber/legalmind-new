@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
 import { COLORS } from "../constants/app";
@@ -17,20 +18,11 @@ export default function RoleCasesScreen({
   role,
   language = "pashto",
   onBack,
-  onOpenCase
+  onOpenCase,
 }) {
   const [cases, setCases] = useState([]);
-
-  useEffect(() => {
-    loadCases();
-  }, [role]);
-
-  async function loadCases() {
-    const data = await getRoleCases(role);
-    setCases(data);
-  }
-
-  const roleConfig = getRoleConfig(role);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const text =
     language === "english"
@@ -42,7 +34,10 @@ export default function RoleCasesScreen({
           locked: "Locked",
           completed: "Completed",
           start: "Start Case",
-          noCase: "No case available."
+          noCase: "No case available.",
+          loading: "Loading cases...",
+          error: "Could not load cases.",
+          retry: "Try Again",
         }
       : language === "dari"
       ? {
@@ -53,7 +48,10 @@ export default function RoleCasesScreen({
           locked: "قفل",
           completed: "تکمیل شده",
           start: "شروع قضیه",
-          noCase: "قضیه‌ای موجود نیست."
+          noCase: "قضیه‌ای موجود نیست.",
+          loading: "قضایا در حال بارگذاری...",
+          error: "قضایا بارگذاری نشد.",
+          retry: "دوباره تلاش",
         }
       : {
           back: "بېرته",
@@ -63,8 +61,13 @@ export default function RoleCasesScreen({
           locked: "بند",
           completed: "بشپړه شوې",
           start: "قضیه پیل کړه",
-          noCase: "اوس قضیه موجوده نه ده."
+          noCase: "اوس قضیه موجوده نه ده.",
+          loading: "قضیې لوډ کېږي...",
+          error: "قضیې لوډ نه شوې.",
+          retry: "بیا هڅه",
         };
+
+  const roleConfig = getRoleConfig(role);
 
   const roleName =
     role === "judge"
@@ -73,10 +76,66 @@ export default function RoleCasesScreen({
       ? text.prosecutor
       : text.defense;
 
+  const loadCases = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await getRoleCases(role);
+
+      if (Array.isArray(data)) {
+        setCases(data);
+      } else {
+        setCases([]);
+      }
+    } catch (err) {
+      console.error(
+        "LegalMind role cases error:",
+        err
+      );
+
+      setCases([]);
+      setError(text.error);
+    } finally {
+      setLoading(false);
+    }
+  }, [role, text.error]);
+
+  useEffect(() => {
+    loadCases();
+  }, [loadCases]);
+
+  function handleOpenCase(caseId, unlocked) {
+    if (!unlocked) return;
+
+    if (
+      typeof onOpenCase === "function" &&
+      caseId
+    ) {
+      onOpenCase(caseId);
+    }
+  }
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}>
+          <ActivityIndicator
+            size="large"
+            color={COLORS.gold}
+          />
+
+          <Text style={styles.loadingText}>
+            {text.loading}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -92,13 +151,35 @@ export default function RoleCasesScreen({
             </Text>
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>
-            {roleConfig?.icon || "⚖️"}{" "}
-            {roleName}
+          <Text
+            style={styles.headerTitle}
+            numberOfLines={2}
+          >
+            {roleConfig?.icon || "⚖️"} {roleName}
           </Text>
 
           <View style={styles.headerSpace} />
         </View>
+
+        {error ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>
+              {error}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={loadCases}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={styles.retryText}
+              >
+                {text.retry}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -115,61 +196,78 @@ export default function RoleCasesScreen({
               </Text>
             </View>
           ) : (
-            cases.map((item) => {
+            cases.map((item, index) => {
               const title =
-                item.title?.[language] ||
-                item.title?.pashto ||
-                item.title ||
+                item?.title?.[language] ||
+                item?.title?.pashto ||
+                item?.title ||
                 "—";
 
               const story =
-                item.story?.[language] ||
-                item.story?.pashto ||
-                item.story ||
+                item?.story?.[language] ||
+                item?.story?.pashto ||
+                item?.story ||
                 "";
 
               const difficulty =
-                getDifficulty(item.difficulty);
+                getDifficulty(
+                  item?.difficulty
+                );
 
               const difficultyText =
                 difficulty?.[language] ||
                 difficulty?.pashto ||
+                difficulty?.english ||
                 "";
+
+              const unlocked =
+                item?.unlocked === true;
+
+              const completed =
+                item?.completed === true;
 
               return (
                 <TouchableOpacity
-                  key={item.id}
-                  activeOpacity={
-                    item.unlocked ? 0.82 : 1
+                  key={
+                    item?.id ||
+                    `case-${index}`
                   }
-                  disabled={!item.unlocked}
+                  activeOpacity={
+                    unlocked ? 0.82 : 1
+                  }
+                  disabled={!unlocked}
                   style={[
                     styles.caseCard,
-                    !item.unlocked &&
-                      styles.lockedCard
+                    !unlocked &&
+                      styles.lockedCard,
+                    completed &&
+                      styles.completedCard,
                   ]}
-                  onPress={() => {
-                    if (
-                      item.unlocked &&
-                      typeof onOpenCase ===
-                        "function"
-                    ) {
-                      onOpenCase(item.id);
-                    }
-                  }}
+                  onPress={() =>
+                    handleOpenCase(
+                      item?.id,
+                      unlocked
+                    )
+                  }
                 >
                   <View style={styles.caseTop}>
-                    <View style={styles.caseIcon}>
-                      <Text style={styles.iconText}>
-                        {item.completed
+                    <View
+                      style={styles.caseIcon}
+                    >
+                      <Text
+                        style={styles.iconText}
+                      >
+                        {completed
                           ? "✅"
-                          : item.unlocked
+                          : unlocked
                           ? "⚖️"
                           : "🔒"}
                       </Text>
                     </View>
 
-                    <View style={styles.caseInfo}>
+                    <View
+                      style={styles.caseInfo}
+                    >
                       <Text
                         numberOfLines={2}
                         style={styles.caseTitle}
@@ -177,53 +275,59 @@ export default function RoleCasesScreen({
                         {title}
                       </Text>
 
-                      <Text
-                        style={styles.difficulty}
-                      >
-                        {difficultyText}
-                      </Text>
+                      {difficultyText ? (
+                        <Text
+                          style={
+                            styles.difficulty
+                          }
+                        >
+                          {difficultyText}
+                        </Text>
+                      ) : null}
                     </View>
                   </View>
 
-                  <Text
-                    numberOfLines={3}
-                    style={styles.story}
-                  >
-                    {story}
-                  </Text>
+                  {story ? (
+                    <Text
+                      numberOfLines={4}
+                      style={styles.story}
+                    >
+                      {story}
+                    </Text>
+                  ) : null}
 
-                  <View style={styles.caseBottom}>
+                  <View
+                    style={styles.caseBottom}
+                  >
                     <Text
                       style={[
                         styles.status,
-                        item.completed &&
+                        completed &&
                           styles.completedStatus,
-                        !item.unlocked &&
-                          styles.lockedStatus
+                        !unlocked &&
+                          styles.lockedStatus,
                       ]}
                     >
-                      {item.completed
+                      {completed
                         ? text.completed
-                        : item.unlocked
+                        : unlocked
                         ? text.start
                         : text.locked}
                     </Text>
 
-                    {item.unlocked &&
-                      !item.completed && (
-                        <Text
-                          style={styles.arrow}
-                        >
-                          ›
-                        </Text>
-                      )}
+                    {unlocked && !completed ? (
+                      <Text
+                        style={styles.arrow}
+                      >
+                        ›
+                      </Text>
+                    ) : null}
                   </View>
                 </TouchableOpacity>
               );
             })
           )}
         </ScrollView>
-
       </View>
     </SafeAreaView>
   );
@@ -232,56 +336,58 @@ export default function RoleCasesScreen({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: COLORS.navy
+    backgroundColor: COLORS.navy,
   },
 
   container: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 10
+    paddingTop: 10,
   },
 
   header: {
-    height: 54,
+    minHeight: 54,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between"
+    justifyContent: "space-between",
   },
 
   backButton: {
     minWidth: 80,
     minHeight: 44,
     flexDirection: "row",
-    alignItems: "center"
+    alignItems: "center",
   },
 
   backIcon: {
     color: COLORS.gold,
     fontSize: 34,
-    lineHeight: 36
+    lineHeight: 36,
   },
 
   backText: {
     color: COLORS.white,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "800",
+    marginLeft: 2,
   },
 
   headerTitle: {
     flex: 1,
     color: COLORS.white,
     fontSize: 19,
-    fontWeight: "800",
-    textAlign: "center"
+    fontWeight: "900",
+    textAlign: "center",
+    paddingHorizontal: 6,
   },
 
   headerSpace: {
-    width: 80
+    width: 80,
   },
 
   content: {
     paddingTop: 12,
-    paddingBottom: 30
+    paddingBottom: 30,
   },
 
   caseCard: {
@@ -290,17 +396,21 @@ const styles = StyleSheet.create({
     borderColor: COLORS.gold,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12
+    marginBottom: 12,
   },
 
   lockedCard: {
     opacity: 0.55,
-    borderColor: "#53615E"
+    borderColor: "#53615E",
+  },
+
+  completedCard: {
+    borderColor: COLORS.success,
   },
 
   caseTop: {
     flexDirection: "row",
-    alignItems: "center"
+    alignItems: "center",
   },
 
   caseIcon: {
@@ -310,36 +420,36 @@ const styles = StyleSheet.create({
     backgroundColor: "#102536",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12
+    marginRight: 12,
   },
 
   iconText: {
-    fontSize: 25
+    fontSize: 25,
   },
 
   caseInfo: {
     flex: 1,
-    minWidth: 0
+    minWidth: 0,
   },
 
   caseTitle: {
     color: COLORS.white,
     fontSize: 17,
-    fontWeight: "800"
+    fontWeight: "900",
   },
 
   difficulty: {
     color: COLORS.gold,
     fontSize: 12,
-    fontWeight: "700",
-    marginTop: 5
+    fontWeight: "800",
+    marginTop: 5,
   },
 
   story: {
     color: COLORS.lightGray,
     fontSize: 13,
     lineHeight: 20,
-    marginTop: 14
+    marginTop: 14,
   },
 
   caseBottom: {
@@ -347,26 +457,26 @@ const styles = StyleSheet.create({
     minHeight: 35,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between"
+    justifyContent: "space-between",
   },
 
   status: {
     color: COLORS.gold,
     fontSize: 13,
-    fontWeight: "800"
+    fontWeight: "900",
   },
 
   completedStatus: {
-    color: COLORS.success
+    color: COLORS.success,
   },
 
   lockedStatus: {
-    color: "#8B969E"
+    color: "#8B969E",
   },
 
   arrow: {
     color: COLORS.gold,
-    fontSize: 32
+    fontSize: 32,
   },
 
   empty: {
@@ -376,17 +486,63 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     padding: 30,
     alignItems: "center",
-    marginTop: 20
+    marginTop: 20,
   },
 
   emptyIcon: {
     fontSize: 42,
-    marginBottom: 12
+    marginBottom: 12,
   },
 
   emptyText: {
     color: COLORS.lightGray,
     fontSize: 15,
-    textAlign: "center"
-  }
+    textAlign: "center",
+  },
+
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+
+  loadingText: {
+    color: COLORS.lightGray,
+    fontSize: 15,
+    marginTop: 12,
+  },
+
+  errorBox: {
+    backgroundColor: "#102536",
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 10,
+    marginBottom: 4,
+    alignItems: "center",
+  },
+
+  errorText: {
+    color: COLORS.white,
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 10,
+  },
+
+  retryButton: {
+    minHeight: 44,
+    paddingHorizontal: 22,
+    borderRadius: 10,
+    backgroundColor: COLORS.gold,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  retryText: {
+    color: COLORS.navy,
+    fontSize: 14,
+    fontWeight: "900",
+  },
 });
