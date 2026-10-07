@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+
 import {
   Alert,
   SafeAreaView,
@@ -11,12 +12,15 @@ import {
 } from "react-native";
 
 import { COLORS } from "../constants/app";
+
 import {
   getSettings,
   updateSetting
 } from "../services/settingsService";
-import { resetProgress } from "../engine/caseProgress";
-import { clearAllLegalMindData } from "../storage/storage";
+
+import {
+  clearAllLegalMindData
+} from "../storage/storage";
 
 export default function SettingsScreen({
   language = "pashto",
@@ -24,287 +28,571 @@ export default function SettingsScreen({
   onLanguageChange,
   onAbout
 }) {
-  const [settings, setSettings] = useState({
-    soundEffects: true,
-    backgroundMusic: true,
-    vibration: true,
-    notifications: true,
-    language: "pashto"
-  });
+  const [settings, setSettings] =
+    useState({
+      soundEnabled: true,
+      musicEnabled: true,
+      vibrationEnabled: true,
+      notificationsEnabled: true,
+      language: "pashto"
+    });
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [resetting, setResetting] =
+    useState(false);
 
   useEffect(() => {
     loadSettings();
   }, []);
 
   async function loadSettings() {
-    const saved = await getSettings();
+    try {
+      const saved =
+        await getSettings();
 
-    if (saved) {
-      setSettings((current) => ({
-        ...current,
-        ...saved
-      }));
+      if (saved) {
+        setSettings({
+          soundEnabled:
+            saved.soundEnabled !== false,
+
+          musicEnabled:
+            saved.musicEnabled !== false,
+
+          vibrationEnabled:
+            saved.vibrationEnabled !== false,
+
+          notificationsEnabled:
+            saved.notificationsEnabled !== false,
+
+          language:
+            saved.language ||
+            language ||
+            "pashto"
+        });
+      }
+    } catch (error) {
+      console.error(
+        "LegalMind settings error:",
+        error
+      );
+    } finally {
+      setLoading(false);
     }
   }
 
   async function toggleSetting(key) {
-    const value = !settings[key];
+    const currentValue =
+      Boolean(settings[key]);
+
+    const newValue =
+      !currentValue;
 
     const updated = {
       ...settings,
-      [key]: value
+      [key]: newValue
     };
 
     setSettings(updated);
-    await updateSetting(key, value);
+
+    try {
+      const saved =
+        await updateSetting(
+          key,
+          newValue
+        );
+
+      setSettings((current) => ({
+        ...current,
+        ...saved
+      }));
+    } catch (error) {
+      console.error(
+        "LegalMind setting update error:",
+        error
+      );
+
+      setSettings((current) => ({
+        ...current,
+        [key]: currentValue
+      }));
+    }
   }
 
-  async function changeLanguage(value) {
-    const updated = {
-      ...settings,
-      language: value
-    };
+  async function changeLanguage(
+    value
+  ) {
+    try {
+      const saved =
+        await updateSetting(
+          "language",
+          value
+        );
 
-    setSettings(updated);
-    await updateSetting("language", value);
-    onLanguageChange?.(value);
+      setSettings((current) => ({
+        ...current,
+        ...saved,
+        language: value
+      }));
+
+      onLanguageChange?.(value);
+    } catch (error) {
+      console.error(
+        "LegalMind language error:",
+        error
+      );
+    }
   }
 
   function confirmReset() {
     Alert.alert(
-      "⚠️",
-      language === "english"
-        ? "Reset all game data? This action cannot be undone."
-        : language === "dari"
-        ? "همه معلومات بازی حذف شود؟ این کار برگشت‌پذیر نیست."
-        : "د لوبې ټول معلومات پاک شي؟ دا کار بېرته نه راګرځي.",
+      getText("resetTitle"),
+      getText("resetMessage"),
       [
         {
-          text:
-            language === "english"
-              ? "Cancel"
-              : language === "dari"
-              ? "لغو"
-              : "لغوه",
+          text: getText("cancel"),
           style: "cancel"
         },
         {
-          text:
-            language === "english"
-              ? "Reset"
-              : language === "dari"
-              ? "حذف"
-              : "پاکول",
+          text: getText("reset"),
           style: "destructive",
-          onPress: resetGame
+          onPress:
+            resetGame
         }
       ]
     );
   }
 
   async function resetGame() {
-    await resetProgress();
-    await clearAllLegalMindData();
+    if (resetting) {
+      return;
+    }
 
-    Alert.alert(
-      "LegalMind",
-      language === "english"
-        ? "Game data has been reset."
-        : language === "dari"
-        ? "معلومات بازی دوباره تنظیم شد."
-        : "د لوبې معلومات پاک شول."
+    setResetting(true);
+
+    try {
+      await clearAllLegalMindData();
+
+      Alert.alert(
+        "LegalMind",
+        getText("resetDone")
+      );
+    } catch (error) {
+      console.error(
+        "LegalMind reset error:",
+        error
+      );
+
+      Alert.alert(
+        "LegalMind",
+        getText("resetError")
+      );
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  function getText(key) {
+    const texts = {
+      pashto: {
+        title:
+          "تنظیمات",
+        back:
+          "بېرته",
+        sound:
+          "د غږ اغېزې",
+        music:
+          "شالید موسیقي",
+        vibration:
+          "وېبریشن",
+        notifications:
+          "خبرتیاوې",
+        language:
+          "ژبه",
+        pashto:
+          "پښتو",
+        dari:
+          "دري",
+        english:
+          "انګلیسي",
+        about:
+          "د اپلیکیشن په اړه",
+        reset:
+          "د لوبې معلومات پاکول",
+        resetTitle:
+          "⚠️ د معلوماتو پاکول",
+        resetMessage:
+          "ایا د LegalMind ټول محلي پروفایل، پرمختګ، خوښې، لاسته راوړنې او تنظیمات پاک شي؟ دا کار بېرته نه راګرځي.",
+        cancel:
+          "لغوه",
+        resetDone:
+          "د LegalMind ټول محلي معلومات پاک شول.",
+        resetError:
+          "د معلوماتو د پاکولو پر مهال ستونزه رامنځته شوه.",
+        loading:
+          "..."
+      },
+
+      dari: {
+        title:
+          "تنظیمات",
+        back:
+          "برگشت",
+        sound:
+          "صداهای بازی",
+        music:
+          "موسیقی پس‌زمینه",
+        vibration:
+          "لرزش",
+        notifications:
+          "اعلان‌ها",
+        language:
+          "زبان",
+        pashto:
+          "پشتو",
+        dari:
+          "دری",
+        english:
+          "انگلیسی",
+        about:
+          "درباره برنامه",
+        reset:
+          "حذف معلومات بازی",
+        resetTitle:
+          "⚠️ حذف معلومات",
+        resetMessage:
+          "آیا تمام پروفایل، پیشرفت، علاقه‌مندی‌ها، دستاوردها و تنظیمات محلی LegalMind حذف شود؟ این کار برگشت‌پذیر نیست.",
+        cancel:
+          "لغو",
+        resetDone:
+          "تمام معلومات محلی LegalMind حذف شد.",
+        resetError:
+          "هنگام حذف معلومات مشکل ایجاد شد.",
+        loading:
+          "..."
+      },
+
+      english: {
+        title:
+          "Settings",
+        back:
+          "Back",
+        sound:
+          "Sound Effects",
+        music:
+          "Background Music",
+        vibration:
+          "Vibration",
+        notifications:
+          "Notifications",
+        language:
+          "Language",
+        pashto:
+          "Pashto",
+        dari:
+          "Dari",
+        english:
+          "English",
+        about:
+          "About the App",
+        reset:
+          "Reset Game Data",
+        resetTitle:
+          "⚠️ Reset Data",
+        resetMessage:
+          "Delete all local LegalMind profile, progress, favorites, achievements, and settings? This cannot be undone.",
+        cancel:
+          "Cancel",
+        resetDone:
+          "All local LegalMind data has been deleted.",
+        resetError:
+          "There was a problem deleting the data.",
+        loading:
+          "..."
+      }
+    };
+
+    return (
+      texts?.[language]?.[key] ||
+      texts.pashto[key] ||
+      ""
     );
   }
 
-  const text =
-    language === "english"
-      ? {
-          title: "Settings",
-          back: "Back",
-          sound: "Sound Effects",
-          music: "Background Music",
-          vibration: "Vibration",
-          notifications: "Notifications",
-          language: "Language",
-          pashto: "Pashto",
-          dari: "Dari",
-          english: "English",
-          about: "About the App",
-          reset: "Reset Game Data",
-          resetWarning: "Delete all local progress and profile data."
-        }
-      : language === "dari"
-      ? {
-          title: "تنظیمات",
-          back: "برگشت",
-          sound: "صداهای بازی",
-          music: "موسیقی پس‌زمینه",
-          vibration: "لرزش",
-          notifications: "اعلان‌ها",
-          language: "زبان",
-          pashto: "پشتو",
-          dari: "دری",
-          english: "انگلیسی",
-          about: "درباره برنامه",
-          reset: "حذف معلومات بازی",
-          resetWarning: "تمام پیشرفت و معلومات محلی حذف می‌شود."
-        }
-      : {
-          title: "تنظیمات",
-          back: "بېرته",
-          sound: "د غږ اغېزې",
-          music: "شالید موسیقي",
-          vibration: "وېبریشن",
-          notifications: "خبرتیاوې",
-          language: "ژبه",
-          pashto: "پښتو",
-          dari: "دري",
-          english: "انګلیسي",
-          about: "د اپلیکیشن په اړه",
-          reset: "د لوبې معلومات پاکول",
-          resetWarning:
-            "ټول محلي پرمختګ او پروفایل معلومات به پاک شي."
-        };
+  if (loading) {
+    return (
+      <SafeAreaView
+        style={styles.safe}
+      >
+        <View
+          style={styles.center}
+        >
+          <Text
+            style={styles.loading}
+          >
+            {getText("loading")}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
+    <SafeAreaView
+      style={styles.safe}
+    >
+      <View
+        style={styles.container}
+      >
 
-        <View style={styles.header}>
+        <View
+          style={styles.header}
+        >
           <TouchableOpacity
-            style={styles.backButton}
+            style={
+              styles.backButton
+            }
             onPress={onBack}
+            activeOpacity={0.8}
+            disabled={resetting}
           >
-            <Text style={styles.backIcon}>‹</Text>
+            <Text
+              style={
+                styles.backIcon
+              }
+            >
+              ‹
+            </Text>
 
-            <Text style={styles.backText}>
-              {text.back}
+            <Text
+              style={
+                styles.backText
+              }
+            >
+              {getText("back")}
             </Text>
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>
-            ⚙️ {text.title}
+          <Text
+            style={
+              styles.headerTitle
+            }
+            numberOfLines={1}
+          >
+            ⚙️ {getText("title")}
           </Text>
 
-          <View style={styles.headerSpace} />
+          <View
+            style={
+              styles.headerSpace
+            }
+          />
         </View>
 
         <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={
+            false
+          }
+          contentContainerStyle={
+            styles.content
+          }
         >
 
-          <Text style={styles.sectionTitle}>
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
             🔊
           </Text>
 
           <SettingSwitch
-            title={text.sound}
-            value={settings.soundEffects}
+            title={getText("sound")}
+            value={
+              settings.soundEnabled
+            }
             onChange={() =>
-              toggleSetting("soundEffects")
+              toggleSetting(
+                "soundEnabled"
+              )
             }
           />
 
           <SettingSwitch
-            title={text.music}
-            value={settings.backgroundMusic}
+            title={getText("music")}
+            value={
+              settings.musicEnabled
+            }
             onChange={() =>
-              toggleSetting("backgroundMusic")
+              toggleSetting(
+                "musicEnabled"
+              )
             }
           />
 
           <SettingSwitch
-            title={text.vibration}
-            value={settings.vibration}
+            title={getText("vibration")}
+            value={
+              settings.vibrationEnabled
+            }
             onChange={() =>
-              toggleSetting("vibration")
+              toggleSetting(
+                "vibrationEnabled"
+              )
             }
           />
 
           <SettingSwitch
-            title={text.notifications}
-            value={settings.notifications}
+            title={
+              getText(
+                "notifications"
+              )
+            }
+            value={
+              settings.notificationsEnabled
+            }
             onChange={() =>
-              toggleSetting("notifications")
+              toggleSetting(
+                "notificationsEnabled"
+              )
             }
           />
 
-          <Text style={styles.sectionTitle}>
-            🌐 {text.language}
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
+            🌐 {getText("language")}
           </Text>
 
-          <View style={styles.languageCard}>
+          <View
+            style={
+              styles.languageCard
+            }
+          >
 
             <LanguageButton
-              title={text.pashto}
+              title={getText("pashto")}
               active={
-                settings.language === "pashto"
+                settings.language ===
+                "pashto"
               }
               onPress={() =>
-                changeLanguage("pashto")
+                changeLanguage(
+                  "pashto"
+                )
               }
             />
 
             <LanguageButton
-              title={text.dari}
+              title={getText("dari")}
               active={
-                settings.language === "dari"
+                settings.language ===
+                "dari"
               }
               onPress={() =>
-                changeLanguage("dari")
+                changeLanguage(
+                  "dari"
+                )
               }
             />
 
             <LanguageButton
-              title={text.english}
+              title={getText("english")}
               active={
-                settings.language === "english"
+                settings.language ===
+                "english"
               }
               onPress={() =>
-                changeLanguage("english")
+                changeLanguage(
+                  "english"
+                )
               }
             />
 
           </View>
 
-          <Text style={styles.sectionTitle}>
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
             ℹ️
           </Text>
 
           <TouchableOpacity
-            style={styles.actionCard}
+            style={
+              styles.actionCard
+            }
             onPress={onAbout}
             activeOpacity={0.8}
+            disabled={resetting}
           >
-            <Text style={styles.actionIcon}>
+            <Text
+              style={
+                styles.actionIcon
+              }
+            >
               📱
             </Text>
 
-            <Text style={styles.actionText}>
-              {text.about}
+            <Text
+              style={
+                styles.actionText
+              }
+            >
+              {getText("about")}
             </Text>
 
-            <Text style={styles.arrow}>
+            <Text
+              style={styles.arrow}
+            >
               ›
             </Text>
           </TouchableOpacity>
 
-          <Text style={styles.sectionTitle}>
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
             ⚠️
           </Text>
 
           <TouchableOpacity
-            style={styles.resetCard}
-            onPress={confirmReset}
+            style={[
+              styles.resetCard,
+              resetting &&
+                styles.disabledCard
+            ]}
+            onPress={
+              confirmReset
+            }
             activeOpacity={0.8}
+            disabled={resetting}
           >
-            <Text style={styles.resetTitle}>
-              🗑️ {text.reset}
+            <Text
+              style={
+                styles.resetTitle
+              }
+            >
+              🗑️ {getText("reset")}
             </Text>
 
-            <Text style={styles.resetDescription}>
-              {text.resetWarning}
+            <Text
+              style={
+                styles.resetDescription
+              }
+            >
+              {language ===
+              "english"
+                ? "All local progress and profile data will be deleted."
+                : language ===
+                  "dari"
+                ? "تمام پیشرفت و معلومات محلی حذف می‌شود."
+                : "ټول محلي پرمختګ او پروفایل معلومات به پاک شي."}
             </Text>
           </TouchableOpacity>
 
@@ -320,8 +608,16 @@ function SettingSwitch({
   onChange
 }) {
   return (
-    <View style={styles.settingCard}>
-      <Text style={styles.settingText}>
+    <View
+      style={
+        styles.settingCard
+      }
+    >
+      <Text
+        style={
+          styles.settingText
+        }
+      >
         {title}
       </Text>
 
@@ -329,11 +625,15 @@ function SettingSwitch({
         value={Boolean(value)}
         onValueChange={onChange}
         trackColor={{
-          false: "#34434D",
-          true: COLORS.gold
+          false:
+            "#34434D",
+          true:
+            COLORS.gold
         }}
         thumbColor={
-          value ? COLORS.white : "#B8C2CC"
+          value
+            ? COLORS.white
+            : "#B8C2CC"
         }
       />
     </View>
@@ -349,7 +649,8 @@ function LanguageButton({
     <TouchableOpacity
       style={[
         styles.languageButton,
-        active && styles.activeLanguage
+        active &&
+          styles.activeLanguage
       ]}
       onPress={onPress}
       activeOpacity={0.8}
@@ -357,7 +658,8 @@ function LanguageButton({
       <Text
         style={[
           styles.languageText,
-          active && styles.activeLanguageText
+          active &&
+            styles.activeLanguageText
         ]}
       >
         {title}
@@ -366,166 +668,226 @@ function LanguageButton({
   );
 }
 
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: COLORS.navy
-  },
+const styles =
+  StyleSheet.create({
+    safe: {
+      flex: 1,
+      backgroundColor:
+        COLORS.navy
+    },
 
-  container: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 10
-  },
+    container: {
+      flex: 1,
+      paddingHorizontal: 16,
+      paddingTop: 10
+    },
 
-  header: {
-    height: 54,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between"
-  },
+    header: {
+      height: 54,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "space-between"
+    },
 
-  backButton: {
-    minWidth: 80,
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center"
-  },
+    backButton: {
+      minWidth: 80,
+      minHeight: 44,
+      flexDirection:
+        "row",
+      alignItems:
+        "center"
+    },
 
-  backIcon: {
-    color: COLORS.gold,
-    fontSize: 34,
-    lineHeight: 36
-  },
+    backIcon: {
+      color:
+        COLORS.gold,
+      fontSize: 34,
+      lineHeight: 36
+    },
 
-  backText: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: "700"
-  },
+    backText: {
+      color:
+        COLORS.white,
+      fontSize: 14,
+      fontWeight:
+        "700"
+    },
 
-  headerTitle: {
-    flex: 1,
-    color: COLORS.white,
-    fontSize: 20,
-    fontWeight: "800",
-    textAlign: "center"
-  },
+    headerTitle: {
+      flex: 1,
+      color:
+        COLORS.white,
+      fontSize: 20,
+      fontWeight:
+        "800",
+      textAlign:
+        "center"
+    },
 
-  headerSpace: {
-    width: 80
-  },
+    headerSpace: {
+      width: 80
+    },
 
-  content: {
-    paddingTop: 12,
-    paddingBottom: 35
-  },
+    content: {
+      paddingTop: 12,
+      paddingBottom: 35
+    },
 
-  sectionTitle: {
-    color: COLORS.gold,
-    fontSize: 18,
-    fontWeight: "900",
-    marginTop: 12,
-    marginBottom: 9
-  },
+    sectionTitle: {
+      color:
+        COLORS.gold,
+      fontSize: 18,
+      fontWeight:
+        "900",
+      marginTop: 12,
+      marginBottom: 9
+    },
 
-  settingCard: {
-    minHeight: 60,
-    backgroundColor: COLORS.emerald,
-    borderWidth: 1,
-    borderColor: "#315044",
-    borderRadius: 14,
-    paddingHorizontal: 15,
-    marginBottom: 9,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between"
-  },
+    settingCard: {
+      minHeight: 60,
+      backgroundColor:
+        COLORS.emerald,
+      borderWidth: 1,
+      borderColor:
+        "#315044",
+      borderRadius: 14,
+      paddingHorizontal: 15,
+      marginBottom: 9,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "space-between"
+    },
 
-  settingText: {
-    flex: 1,
-    color: COLORS.white,
-    fontSize: 15,
-    fontWeight: "700"
-  },
+    settingText: {
+      flex: 1,
+      color:
+        COLORS.white,
+      fontSize: 15,
+      fontWeight:
+        "700"
+    },
 
-  languageCard: {
-    backgroundColor: "#102536",
-    borderWidth: 1,
-    borderColor: "#315044",
-    borderRadius: 14,
-    padding: 10,
-    marginBottom: 5
-  },
+    languageCard: {
+      backgroundColor:
+        "#102536",
+      borderWidth: 1,
+      borderColor:
+        "#315044",
+      borderRadius: 14,
+      padding: 10,
+      marginBottom: 5
+    },
 
-  languageButton: {
-    minHeight: 46,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    marginVertical: 3
-  },
+    languageButton: {
+      minHeight: 46,
+      borderRadius: 10,
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
+      marginVertical: 3
+    },
 
-  activeLanguage: {
-    backgroundColor: COLORS.gold
-  },
+    activeLanguage: {
+      backgroundColor:
+        COLORS.gold
+    },
 
-  languageText: {
-    color: COLORS.lightGray,
-    fontSize: 14,
-    fontWeight: "800"
-  },
+    languageText: {
+      color:
+        COLORS.lightGray,
+      fontSize: 14,
+      fontWeight:
+        "800"
+    },
 
-  activeLanguageText: {
-    color: COLORS.navy
-  },
+    activeLanguageText: {
+      color:
+        COLORS.navy
+    },
 
-  actionCard: {
-    minHeight: 62,
-    backgroundColor: COLORS.emerald,
-    borderWidth: 1,
-    borderColor: COLORS.gold,
-    borderRadius: 14,
-    paddingHorizontal: 15,
-    flexDirection: "row",
-    alignItems: "center"
-  },
+    actionCard: {
+      minHeight: 62,
+      backgroundColor:
+        COLORS.emerald,
+      borderWidth: 1,
+      borderColor:
+        COLORS.gold,
+      borderRadius: 14,
+      paddingHorizontal: 15,
+      flexDirection:
+        "row",
+      alignItems:
+        "center"
+    },
 
-  actionIcon: {
-    fontSize: 23,
-    marginRight: 12
-  },
+    actionIcon: {
+      fontSize: 23,
+      marginRight: 12
+    },
 
-  actionText: {
-    flex: 1,
-    color: COLORS.white,
-    fontSize: 15,
-    fontWeight: "800"
-  },
+    actionText: {
+      flex: 1,
+      color:
+        COLORS.white,
+      fontSize: 15,
+      fontWeight:
+        "800"
+    },
 
-  arrow: {
-    color: COLORS.gold,
-    fontSize: 30
-  },
+    arrow: {
+      color:
+        COLORS.gold,
+      fontSize: 30
+    },
 
-  resetCard: {
-    backgroundColor: "#32191A",
-    borderWidth: 1,
-    borderColor: COLORS.danger,
-    borderRadius: 14,
-    padding: 15
-  },
+    resetCard: {
+      backgroundColor:
+        "#32191A",
+      borderWidth: 1,
+      borderColor:
+        COLORS.danger,
+      borderRadius: 14,
+      padding: 15
+    },
 
-  resetTitle: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "900",
-    marginBottom: 6
-  },
+    disabledCard: {
+      opacity: 0.55
+    },
 
-  resetDescription: {
-    color: "#D7BABA",
-    fontSize: 12,
-    lineHeight: 18
-  }
-});
+    resetTitle: {
+      color:
+        COLORS.white,
+      fontSize: 15,
+      fontWeight:
+        "900",
+      marginBottom: 6
+    },
+
+    resetDescription: {
+      color:
+        "#D7BABA",
+      fontSize: 12,
+      lineHeight: 18
+    },
+
+    center: {
+      flex: 1,
+      alignItems:
+        "center",
+      justifyContent:
+        "center"
+    },
+
+    loading: {
+      color:
+        COLORS.gold,
+      fontSize: 25
+    }
+  });
