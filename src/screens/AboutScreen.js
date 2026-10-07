@@ -6,14 +6,15 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
 import { COLORS } from "../constants/app";
+import { ABOUT_CREATOR } from "../data/appDefaults";
 
 export default function AboutScreen({
   language = "pashto",
-  onBack
+  onBack,
 }) {
   const text =
     language === "english"
@@ -21,7 +22,7 @@ export default function AboutScreen({
           title: "About LegalMind",
           back: "Back",
           description:
-            "LegalMind is an educational and practical application for law students. It helps students learn legal terminology and practice real-world legal analysis through Judge, Prosecutor, and Defense Attorney roles.",
+            "LegalMind is an educational and practical application for law students. It helps students learn legal terminology and practice legal analysis through Judge, Prosecutor, and Defense Attorney roles.",
           offline:
             "The core learning experience works offline. Progress and settings are stored locally on the device.",
           creator: "About the Creator",
@@ -37,7 +38,7 @@ export default function AboutScreen({
           telegram: "Telegram",
           version: "App Version",
           emailAction: "Email Creator",
-          telegramAction: "Open Telegram"
+          telegramAction: "Open Telegram",
         }
       : language === "dari"
       ? {
@@ -60,7 +61,7 @@ export default function AboutScreen({
           telegram: "تلگرام",
           version: "نسخه برنامه",
           emailAction: "ایمیل به سازنده",
-          telegramAction: "باز کردن تلگرام"
+          telegramAction: "باز کردن تلگرام",
         }
       : {
           title: "د LegalMind په اړه",
@@ -82,38 +83,39 @@ export default function AboutScreen({
           telegram: "ټیلیګرام",
           version: "د اپلیکیشن نسخه",
           emailAction: "جوړوونکي ته ایمیل",
-          telegramAction: "ټیلیګرام پرانیستل"
+          telegramAction: "ټیلیګرام پرانیستل",
         };
 
   async function openEmail() {
-    await Linking.openURL(
-      "mailto:omidhasanzai@gmail.com"
-    );
+    try {
+      await Linking.openURL(`mailto:${ABOUT_CREATOR.email}`);
+    } catch (error) {
+      console.error("LegalMind email error:", error);
+    }
   }
 
   async function openTelegram() {
-    await Linking.openURL(
-      "https://t.me/momand330"
-    );
+    try {
+      await Linking.openURL(
+        `https://t.me/${ABOUT_CREATOR.telegram.replace("@", "")}`
+      );
+    } catch (error) {
+      console.error("LegalMind Telegram error:", error);
+    }
   }
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={onBack}
             activeOpacity={0.8}
           >
-            <Text style={styles.backIcon}>
-              ‹
-            </Text>
+            <Text style={styles.backIcon}>‹</Text>
 
-            <Text style={styles.backText}>
-              {text.back}
-            </Text>
+            <Text style={styles.backText}>{text.back}</Text>
           </TouchableOpacity>
 
           <Text style={styles.headerTitle}>
@@ -127,11 +129,8 @@ export default function AboutScreen({
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
         >
-
           <View style={styles.introCard}>
-            <Text style={styles.logo}>
-              ⚖️
-            </Text>
+            <Text style={styles.logo}>⚖️</Text>
 
             <Text style={styles.appName}>
               LegalMind
@@ -157,47 +156,48 @@ export default function AboutScreen({
           <View style={styles.creatorCard}>
             <InfoRow
               label={text.name}
-              value="اميد مومند"
+              value={ABOUT_CREATOR.name}
             />
 
             <InfoRow
               label={text.displayName}
-              value="اميد حسن زی"
+              value={ABOUT_CREATOR.displayName}
             />
 
             <InfoRow
               label={text.university}
-              value="ننګرهار پوهنتون"
+              value={ABOUT_CREATOR.university}
             />
 
             <InfoRow
               label={text.faculty}
-              value="حقوق او سياسي علوم"
+              value={ABOUT_CREATOR.faculty}
             />
 
             <InfoRow
               label={text.department}
-              value="حقوقي علوم"
+              value={ABOUT_CREATOR.department}
             />
 
             <InfoRow
               label={text.semester}
-              value="5"
+              value={ABOUT_CREATOR.semester}
             />
 
             <InfoRow
               label={text.classYear}
-              value="3"
+              value={ABOUT_CREATOR.classYear}
             />
 
             <InfoRow
               label={text.academicYear}
-              value="1405"
+              value={ABOUT_CREATOR.academicYear}
             />
 
             <InfoRow
               label={text.version}
-              value="9"
+              value={ABOUT_CREATOR.appVersion}
+              last
             />
           </View>
 
@@ -206,9 +206,7 @@ export default function AboutScreen({
             onPress={openEmail}
             activeOpacity={0.82}
           >
-            <Text style={styles.contactIcon}>
-              ✉️
-            </Text>
+            <Text style={styles.contactIcon}>✉️</Text>
 
             <View style={styles.contactInfo}>
               <Text style={styles.contactLabel}>
@@ -216,13 +214,11 @@ export default function AboutScreen({
               </Text>
 
               <Text style={styles.contactValue}>
-                omidhasanzai@gmail.com
+                {ABOUT_CREATOR.email}
               </Text>
             </View>
 
-            <Text style={styles.arrow}>
-              ›
-            </Text>
+            <Text style={styles.arrow}>›</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -230,9 +226,7 @@ export default function AboutScreen({
             onPress={openTelegram}
             activeOpacity={0.82}
           >
-            <Text style={styles.contactIcon}>
-              ✈️
-            </Text>
+            <Text style={styles.contactIcon}>✈️</Text>
 
             <View style={styles.contactInfo}>
               <Text style={styles.contactLabel}>
@@ -240,15 +234,16 @@ export default function AboutScreen({
               </Text>
 
               <Text style={styles.contactValue}>
-                @momand330
+                {ABOUT_CREATOR.telegram}
               </Text>
             </View>
 
-            <Text style={styles.arrow}>
-              ›
-            </Text>
+            <Text style={styles.arrow}>›</Text>
           </TouchableOpacity>
 
+          <Text style={styles.footer}>
+            ⚖️ LegalMind • Learn • Analyze • Decide
+          </Text>
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -257,10 +252,16 @@ export default function AboutScreen({
 
 function InfoRow({
   label,
-  value
+  value,
+  last = false,
 }) {
   return (
-    <View style={styles.infoRow}>
+    <View
+      style={[
+        styles.infoRow,
+        last && styles.lastInfoRow,
+      ]}
+    >
       <Text style={styles.infoLabel}>
         {label}
       </Text>
@@ -275,39 +276,39 @@ function InfoRow({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: COLORS.navy
+    backgroundColor: COLORS.navy,
   },
 
   container: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 10
+    paddingTop: 10,
   },
 
   header: {
     height: 54,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between"
+    justifyContent: "space-between",
   },
 
   backButton: {
     minWidth: 80,
     minHeight: 44,
     flexDirection: "row",
-    alignItems: "center"
+    alignItems: "center",
   },
 
   backIcon: {
     color: COLORS.gold,
     fontSize: 34,
-    lineHeight: 36
+    lineHeight: 36,
   },
 
   backText: {
     color: COLORS.white,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "700",
   },
 
   headerTitle: {
@@ -315,16 +316,16 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 19,
     fontWeight: "800",
-    textAlign: "center"
+    textAlign: "center",
   },
 
   headerSpace: {
-    width: 80
+    width: 80,
   },
 
   content: {
     paddingTop: 12,
-    paddingBottom: 35
+    paddingBottom: 35,
   },
 
   introCard: {
@@ -334,18 +335,18 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     padding: 20,
     alignItems: "center",
-    marginBottom: 20
+    marginBottom: 20,
   },
 
   logo: {
     fontSize: 50,
-    marginBottom: 8
+    marginBottom: 8,
   },
 
   appName: {
     color: COLORS.white,
     fontSize: 27,
-    fontWeight: "900"
+    fontWeight: "900",
   },
 
   tagline: {
@@ -353,14 +354,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     marginTop: 5,
-    marginBottom: 15
+    marginBottom: 15,
   },
 
   description: {
     color: COLORS.lightGray,
     fontSize: 14,
     lineHeight: 22,
-    textAlign: "center"
+    textAlign: "center",
   },
 
   offline: {
@@ -371,14 +372,14 @@ const styles = StyleSheet.create({
     marginTop: 15,
     fontSize: 12,
     lineHeight: 19,
-    textAlign: "center"
+    textAlign: "center",
   },
 
   sectionTitle: {
     color: COLORS.gold,
     fontSize: 18,
     fontWeight: "900",
-    marginBottom: 10
+    marginBottom: 10,
   },
 
   creatorCard: {
@@ -387,27 +388,31 @@ const styles = StyleSheet.create({
     borderColor: "#315044",
     borderRadius: 15,
     paddingHorizontal: 15,
-    marginBottom: 12
+    marginBottom: 12,
   },
 
   infoRow: {
     minHeight: 52,
     borderBottomWidth: 1,
     borderBottomColor: "#263C49",
-    justifyContent: "center"
+    justifyContent: "center",
+  },
+
+  lastInfoRow: {
+    borderBottomWidth: 0,
   },
 
   infoLabel: {
     color: "#7F8C98",
     fontSize: 11,
     fontWeight: "700",
-    marginBottom: 3
+    marginBottom: 3,
   },
 
   infoValue: {
     color: COLORS.white,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "700",
   },
 
   contactButton: {
@@ -419,33 +424,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     marginBottom: 10,
     flexDirection: "row",
-    alignItems: "center"
+    alignItems: "center",
   },
 
   contactIcon: {
     fontSize: 23,
-    marginRight: 12
+    marginRight: 12,
   },
 
   contactInfo: {
-    flex: 1
+    flex: 1,
   },
 
   contactLabel: {
     color: COLORS.gold,
     fontSize: 12,
     fontWeight: "800",
-    marginBottom: 3
+    marginBottom: 3,
   },
 
   contactValue: {
     color: COLORS.white,
     fontSize: 14,
-    fontWeight: "700"
+    fontWeight: "700",
   },
 
   arrow: {
     color: COLORS.gold,
-    fontSize: 30
-  }
+    fontSize: 30,
+  },
+
+  footer: {
+    color: "#71808C",
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 18,
+  },
 });
