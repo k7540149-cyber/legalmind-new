@@ -1,53 +1,264 @@
-import { getData, saveData, STORAGE_KEYS } from "../storage/storage";
+import {
+  getData,
+  saveData,
+  STORAGE_KEYS
+} from "../storage/storage";
+
 import { DEFAULT_PROGRESS } from "../data/appDefaults";
-import { calculateNewProgress, getLevelFromPoints } from "./scoring";
+
+import {
+  calculateNewProgress,
+  getLevelFromPoints
+} from "./scoring";
+
+import {
+  clampProgress,
+  addUniqueCase
+} from "../utils/progressValidator";
 
 function cloneProgress(progress) {
-  return JSON.parse(JSON.stringify(progress));
+  try {
+    return JSON.parse(
+      JSON.stringify(progress)
+    );
+  } catch {
+    return JSON.parse(
+      JSON.stringify(DEFAULT_PROGRESS)
+    );
+  }
 }
 
-export async function getProgress() {
-  const saved = await getData(
-    STORAGE_KEYS.PROGRESS,
-    DEFAULT_PROGRESS
-  );
+function cleanCaseIds(ids = []) {
+  if (!Array.isArray(ids)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      ids
+        .map((id) =>
+          String(id || "").trim()
+        )
+        .filter(Boolean)
+    )
+  ];
+}
+
+function cleanRoleProgress(roleProgress = {}) {
+  const defaults = {
+    completedCases: [],
+    unlockedCases: [],
+    skill: 0
+  };
+
+  const completedCases =
+    cleanCaseIds(
+      roleProgress?.completedCases
+    );
+
+  const unlockedCases =
+    cleanCaseIds(
+      roleProgress?.unlockedCases
+    );
+
+  const skill =
+    Number(roleProgress?.skill);
 
   return {
-    ...cloneProgress(DEFAULT_PROGRESS),
-    ...saved,
-    roles: {
-      ...cloneProgress(DEFAULT_PROGRESS).roles,
-      ...(saved?.roles || {})
-    }
+    ...defaults,
+    ...roleProgress,
+    completedCases,
+    unlockedCases,
+    skill: Number.isFinite(skill)
+      ? Math.min(
+          100,
+          Math.max(
+            0,
+            Math.floor(skill)
+          )
+        )
+      : 0
   };
 }
 
-export async function saveProgress(progress) {
-  return saveData(STORAGE_KEYS.PROGRESS, progress);
-}
+function cleanProgress(progress = {}) {
+  const defaults =
+    cloneProgress(
+      DEFAULT_PROGRESS
+    );
 
-export async function getRoleProgress(role) {
-  const progress = await getProgress();
+  const merged = {
+    ...defaults,
+    ...(progress || {})
+  };
 
-  return (
-    progress.roles?.[role] || {
-      completedCases: [],
-      unlockedCases: [],
-      skill: 0
-    }
+  const progressPoints =
+    Number(merged.progressPoints);
+
+  const level =
+    Number(merged.level);
+
+  const roles = {
+    ...defaults.roles,
+    ...(merged.roles || {})
+  };
+
+  const cleanRoles = {};
+
+  for (const role of Object.keys(roles)) {
+    cleanRoles[role] =
+      cleanRoleProgress(
+        roles[role]
+      );
+  }
+
+  const clean = {
+    ...merged,
+    progressPoints:
+      Number.isFinite(progressPoints)
+        ? Math.max(
+            0,
+            Math.floor(
+              progressPoints
+            )
+          )
+        : 0,
+    level:
+      Number.isFinite(level)
+        ? Math.max(
+            1,
+            Math.floor(level)
+          )
+        : 1,
+    roles: cleanRoles
+  };
+
+  return cleanProgressWithValidator(
+    clean
   );
 }
 
-export async function isCaseUnlocked(role, caseId) {
-  const roleProgress = await getRoleProgress(role);
+function cleanProgressWithValidator(
+  progress
+) {
+  try {
+    const validated =
+      clampProgress(progress);
 
-  return roleProgress.unlockedCases.includes(caseId);
+    return {
+      ...progress,
+      ...(validated || {}),
+      roles: {
+        ...progress.roles,
+        ...(validated?.roles || {})
+      }
+    };
+  } catch {
+    return progress;
+  }
 }
 
-export async function isCaseCompleted(role, caseId) {
-  const roleProgress = await getRoleProgress(role);
+export async function getProgress() {
+  const saved =
+    await getData(
+      STORAGE_KEYS.PROGRESS,
+      DEFAULT_PROGRESS
+    );
 
-  return roleProgress.completedCases.includes(caseId);
+  return cleanProgress(saved);
+}
+
+export async function saveProgress(
+  progress
+) {
+  const clean =
+    cleanProgress(progress);
+
+  await saveData(
+    STORAGE_KEYS.PROGRESS,
+    clean
+  );
+
+  return clean;
+}
+
+export async function getRoleProgress(
+  role
+) {
+  const cleanRole =
+    String(role || "").trim();
+
+  const progress =
+    await getProgress();
+
+  if (
+    !cleanRole ||
+    !progress.roles?.[cleanRole]
+  ) {
+    return {
+      completedCases: [],
+      unlockedCases: [],
+      skill: 0
+    };
+  }
+
+  return cleanRoleProgress(
+    progress.roles[cleanRole]
+  );
+}
+
+export async function isCaseUnlocked(
+  role,
+  caseId
+) {
+  const cleanRole =
+    String(role || "").trim();
+
+  const cleanCaseId =
+    String(caseId || "").trim();
+
+  if (
+    !cleanRole ||
+    !cleanCaseId
+  ) {
+    return false;
+  }
+
+  const roleProgress =
+    await getRoleProgress(
+      cleanRole
+    );
+
+  return roleProgress.unlockedCases.includes(
+    cleanCaseId
+  );
+}
+
+export async function isCaseCompleted(
+  role,
+  caseId
+) {
+  const cleanRole =
+    String(role || "").trim();
+
+  const cleanCaseId =
+    String(caseId || "").trim();
+
+  if (
+    !cleanRole ||
+    !cleanCaseId
+  ) {
+    return false;
+  }
+
+  const roleProgress =
+    await getRoleProgress(
+      cleanRole
+    );
+
+  return roleProgress.completedCases.includes(
+    cleanCaseId
+  );
 }
 
 export async function completeCase({
@@ -55,82 +266,283 @@ export async function completeCase({
   caseId,
   nextCaseId = null,
   attempt = 1,
-  hintsUsed = 0
+  hintsUsed = 0,
+  completed = true
 }) {
-  const progress = await getProgress();
+  const cleanRole =
+    String(role || "").trim();
 
-  const currentRole = progress.roles[role] || {
-    completedCases: [],
-    unlockedCases: [],
-    skill: 0
-  };
+  const cleanCaseId =
+    String(caseId || "").trim();
 
-  const result = calculateNewProgress({
-    currentPoints: progress.progressPoints,
-    currentSkill: currentRole.skill,
-    attempt,
-    hintsUsed,
-    completed: true
-  });
-
-  if (!currentRole.completedCases.includes(caseId)) {
-    currentRole.completedCases.push(caseId);
-  }
+  const cleanNextCaseId =
+    nextCaseId
+      ? String(nextCaseId).trim()
+      : null;
 
   if (
-    nextCaseId &&
-    !currentRole.unlockedCases.includes(nextCaseId)
+    !cleanRole ||
+    !cleanCaseId
   ) {
-    currentRole.unlockedCases.push(nextCaseId);
+    return {
+      success: false,
+      completed: false,
+      reason: "missing_role_or_case"
+    };
   }
 
-  progress.progressPoints = result.newPoints;
+  if (completed !== true) {
+    return {
+      success: false,
+      completed: false,
+      score: 0,
+      addedPoints: 0
+    };
+  }
 
-  progress.roles[role] = {
-    ...currentRole,
-    skill: result.newSkill
-  };
+  const progress =
+    await getProgress();
 
-  progress.level = getLevelFromPoints(
-    progress.progressPoints
-  );
-
-  await saveProgress(progress);
-
-  return {
-    progress,
-    score: result.score,
-    addedPoints: result.addedPoints,
-    skillIncrease: result.skillIncrease,
-    newSkill: result.newSkill,
-    level: progress.level
-  };
-}
-
-export async function unlockCase(role, caseId) {
-  const progress = await getProgress();
-
-  if (!progress.roles[role]) {
-    progress.roles[role] = {
+  if (!progress.roles[cleanRole]) {
+    progress.roles[cleanRole] = {
       completedCases: [],
       unlockedCases: [],
       skill: 0
     };
   }
 
-  if (!progress.roles[role].unlockedCases.includes(caseId)) {
-    progress.roles[role].unlockedCases.push(caseId);
+  const currentRole =
+    cleanRoleProgress(
+      progress.roles[cleanRole]
+    );
+
+  const alreadyCompleted =
+    currentRole.completedCases.includes(
+      cleanCaseId
+    );
+
+  /*
+   * A completed case must never
+   * give points twice.
+   */
+  if (alreadyCompleted) {
+    return {
+      success: false,
+      completed: true,
+      duplicate: true,
+      reason: "case_already_completed",
+      progress,
+      score: 0,
+      addedPoints: 0,
+      skillIncrease: 0,
+      newSkill: currentRole.skill,
+      level: progress.level
+    };
   }
 
-  await saveProgress(progress);
+  const safeAttempt =
+    Math.min(
+      100,
+      Math.max(
+        1,
+        Math.floor(
+          Number(attempt) || 1
+        )
+      )
+    );
 
-  return progress;
+  const safeHints =
+    Math.min(
+      100,
+      Math.max(
+        0,
+        Math.floor(
+          Number(hintsUsed) || 0
+        )
+      )
+    );
+
+  const result =
+    calculateNewProgress({
+      currentPoints:
+        progress.progressPoints,
+      currentSkill:
+        currentRole.skill,
+      attempt:
+        safeAttempt,
+      hintsUsed:
+        safeHints,
+      completed: true
+    });
+
+  currentRole.completedCases =
+    cleanCaseIds([
+      ...currentRole.completedCases,
+      cleanCaseId
+    ]);
+
+  if (cleanNextCaseId) {
+    const uniqueResult =
+      addUniqueCase(
+        currentRole.unlockedCases,
+        cleanNextCaseId
+      );
+
+    if (
+      Array.isArray(
+        uniqueResult
+      )
+    ) {
+      currentRole.unlockedCases =
+        uniqueResult;
+    } else if (
+      Array.isArray(
+        uniqueResult?.items
+      )
+    ) {
+      currentRole.unlockedCases =
+        uniqueResult.items;
+    }
+  }
+
+  /*
+   * Keep all existing unlocked
+   * cases and remove duplicates.
+   */
+  currentRole.unlockedCases =
+    cleanCaseIds(
+      currentRole.unlockedCases
+    );
+
+  progress.progressPoints =
+    Math.max(
+      0,
+      Number(result.newPoints) || 0
+    );
+
+  progress.roles[cleanRole] = {
+    ...currentRole,
+    skill:
+      Math.min(
+        100,
+        Math.max(
+          0,
+          Number(result.newSkill) || 0
+        )
+      )
+  };
+
+  progress.level =
+    getLevelFromPoints(
+      progress.progressPoints
+    );
+
+  const saved =
+    await saveProgress(
+      progress
+    );
+
+  return {
+    success: true,
+    completed: true,
+    duplicate: false,
+    progress: saved,
+    score: result.score,
+    addedPoints:
+      result.addedPoints,
+    skillIncrease:
+      result.skillIncrease,
+    newSkill:
+      result.newSkill,
+    level:
+      saved.level
+  };
+}
+
+export async function unlockCase(
+  role,
+  caseId
+) {
+  const cleanRole =
+    String(role || "").trim();
+
+  const cleanCaseId =
+    String(caseId || "").trim();
+
+  if (
+    !cleanRole ||
+    !cleanCaseId
+  ) {
+    return {
+      success: false,
+      reason: "missing_role_or_case"
+    };
+  }
+
+  const progress =
+    await getProgress();
+
+  if (!progress.roles[cleanRole]) {
+    progress.roles[cleanRole] = {
+      completedCases: [],
+      unlockedCases: [],
+      skill: 0
+    };
+  }
+
+  const roleProgress =
+    cleanRoleProgress(
+      progress.roles[cleanRole]
+    );
+
+  if (
+    roleProgress.unlockedCases.includes(
+      cleanCaseId
+    )
+  ) {
+    progress.roles[cleanRole] =
+      roleProgress;
+
+    return {
+      success: false,
+      duplicate: true,
+      reason: "case_already_unlocked",
+      progress
+    };
+  }
+
+  roleProgress.unlockedCases =
+    cleanCaseIds([
+      ...roleProgress.unlockedCases,
+      cleanCaseId
+    ]);
+
+  progress.roles[cleanRole] =
+    roleProgress;
+
+  const saved =
+    await saveProgress(
+      progress
+    );
+
+  return {
+    success: true,
+    duplicate: false,
+    progress: saved
+  };
 }
 
 export async function resetProgress() {
-  const freshProgress = cloneProgress(DEFAULT_PROGRESS);
+  const freshProgress =
+    cleanProgress(
+      cloneProgress(
+        DEFAULT_PROGRESS
+      )
+    );
 
-  await saveProgress(freshProgress);
+  await saveProgress(
+    freshProgress
+  );
 
   return freshProgress;
 }
