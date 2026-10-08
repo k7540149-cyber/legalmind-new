@@ -5,6 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
+    "owner": "omidmomands-team",
+    "cli": {
+      "appVersionSource": "remote"
+    },
     "android": {
       "package": "com.legalmind.app"
     }
