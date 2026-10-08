@@ -1,83 +1,117 @@
-import {
-  uniqueById,
-  uniqueByField
-} from "./uniqueData";
+import { terminology } from "../data/terminology";
 
-export function validateTerminology(terms = []) {
-  const errors = [];
+function normalizeText(value = "") {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
 
-  if (!Array.isArray(terms)) {
-    return {
-      valid: false,
-      errors: ["Terminology باید Array وي."],
-      terms: []
-    };
-  }
+function getTermKey(term) {
+  if (!term) return "";
 
-  const cleanTerms = uniqueById(terms);
-
-  if (cleanTerms.length !== terms.length) {
-    errors.push("Duplicate Terminology IDs وموندل شول.");
-  }
-
-  const uniqueEnglish = uniqueByField(
-    cleanTerms,
-    "english"
+  return normalizeText(
+    term.term ||
+    term.pashto?.term ||
+    term.dari?.term ||
+    term.english?.term ||
+    ""
   );
+}
 
-  if (uniqueEnglish.length !== cleanTerms.length) {
-    errors.push("Duplicate English terminology وموندل شول.");
-  }
+export function validateTerminology(data = terminology) {
+  const source = Array.isArray(data) ? data : [];
 
-  for (const term of cleanTerms) {
-    if (!term?.id) {
-      errors.push("یو Term د ID پرته دی.");
+  const seenIds = new Set();
+  const seenTerms = new Set();
+
+  const validTerms = [];
+  const duplicateIds = [];
+  const duplicateTerms = [];
+  const invalidTerms = [];
+
+  source.forEach((item) => {
+    if (!item || typeof item !== "object") {
+      invalidTerms.push(item);
+      return;
     }
 
-    if (!term?.pashto && !term?.dari && !term?.english) {
-      errors.push(
-        `Term ${term?.id || "Unknown"} محتوا نه لري.`
-      );
+    const id = normalizeText(item.id);
+    const termKey = getTermKey(item);
+
+    if (!id || !termKey) {
+      invalidTerms.push(item);
+      return;
     }
 
-    if (!term?.definition) {
-      errors.push(
-        `Term ${term?.id || "Unknown"} تعریف نه لري.`
-      );
+    if (seenIds.has(id)) {
+      duplicateIds.push(id);
+      return;
     }
 
-    if (!term?.explanation) {
-      errors.push(
-        `Term ${term?.id || "Unknown"} ساده تشریح نه لري.`
-      );
+    if (seenTerms.has(termKey)) {
+      duplicateTerms.push(termKey);
+      return;
     }
 
-    if (!term?.example) {
-      errors.push(
-        `Term ${term?.id || "Unknown"} مثال نه لري.`
-      );
-    }
-  }
+    seenIds.add(id);
+    seenTerms.add(termKey);
+
+    validTerms.push(item);
+  });
 
   return {
-    valid: errors.length === 0,
-    errors,
-    terms: cleanTerms
+    validTerms,
+    duplicateIds: [...new Set(duplicateIds)],
+    duplicateTerms: [...new Set(duplicateTerms)],
+    invalidTerms,
+    total: source.length,
+    valid: validTerms.length,
   };
 }
 
-export function findDuplicateTermIds(terms = []) {
-  const counts = {};
+export function getUniqueTerminology(data = terminology) {
+  return validateTerminology(data).validTerms;
+}
 
-  for (const term of terms) {
-    const id = String(term?.id || "").trim();
+export function hasDuplicateTerminology(data = terminology) {
+  const result = validateTerminology(data);
 
-    if (!id) continue;
-
-    counts[id] = (counts[id] || 0) + 1;
-  }
-
-  return Object.keys(counts).filter(
-    (id) => counts[id] > 1
+  return (
+    result.duplicateIds.length > 0 ||
+    result.duplicateTerms.length > 0 ||
+    result.invalidTerms.length > 0
   );
+}
+
+export function findDuplicateTerminology(data = terminology) {
+  const result = validateTerminology(data);
+
+  return {
+    duplicateIds: result.duplicateIds,
+    duplicateTerms: result.duplicateTerms,
+    invalidTerms: result.invalidTerms,
+  };
+}
+
+export function findTermByNormalizedName(
+  termName,
+  data = terminology
+) {
+  const target = normalizeText(termName);
+
+  if (!target) return null;
+
+  return getUniqueTerminology(data).find((item) => {
+    const keys = [
+      item.term,
+      item.pashto?.term,
+      item.dari?.term,
+      item.english?.term,
+    ];
+
+    return keys.some(
+      (value) => normalizeText(value) === target
+    );
+  }) || null;
 }
